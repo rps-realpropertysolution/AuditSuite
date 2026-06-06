@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_2" data-name="Layer 2" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 203.39 99.29">
+  <defs>
+    <style>
+      .cls-1 {
+        fill: url(#linear-gradient);
+      }
+
+      .cls-1, .cls-2, .cls-3, .cls-4 {
+        stroke-width: 0px;
+      }
+
+      .cls-5 {
+        letter-spacing: .03em;
+      }
+
+      .cls-6 {
+        letter-spacing: -.02em;
+      }
+
+      .cls-2 {
+        fill: #02b4d7;
+      }
+
+      .cls-3, .cls-7 {
+        fill: #0077b6;
+      }
+
+      .cls-4 {
+        fill: #fff;
+      }
+
+      .cls-8 {
+        letter-spacing: -.02em;
+      }
+
+      .cls-7 {
+        font-family: Montserrat-Bold, Montserrat;
+        font-size: 26.05px;
+        font-weight: 700;
+      }
+    </style>
+    <linearGradient id="linear-gradient" x1="50.96" y1="-36.27" x2="91.23" y2="31.93" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0077b6"/>
+      <stop offset="1" stop-color="#201e5a"/>
+    </linearGradient>
+  </defs>
+  <g id="Layer_1-2" data-name="Layer 1">
+    <g>
+      <rect class="cls-1" width="203.39" height="99.29"/>
+      <path class="cls-4" d="m66.44,44.73v24.91c-4.08,0-7.7-1.97-9.97-5.01,6.04-4.55,9.97-11.75,9.97-19.9,0-13.76-11.15-24.91-24.91-24.91h0s-12.46,0-12.46,0v12.46h12.46c6.88,0,12.46,5.58,12.46,12.46s-5.58,12.46-12.46,12.46c0,4.45,1.18,8.61,3.22,12.22,4.28,7.57,12.38,12.69,21.69,12.69h12.46v-49.82h-12.46v12.46Z"/>
+      <path class="cls-4" d="m91.35,19.81h0s-12.46,0-12.46,0v12.46h12.46c6.88,0,12.46,5.58,12.46,12.46s-5.58,12.46-12.46,12.46v12.46c13.76,0,24.91-11.15,24.91-24.91s-11.15-24.91-24.91-24.91Z"/>
+      <polygon class="cls-4" points="16.61 44.73 16.61 57.18 16.61 69.64 16.61 82.09 29.07 82.09 29.07 69.64 29.07 57.18 29.07 44.73 29.07 32.27 16.61 32.27 16.61 44.73"/>
+      <path class="cls-2" d="m141.17,19.81h0c-13.76,0-24.91,11.15-24.91,24.91,0,4.54,1.22,8.79,3.34,12.46h18.52c.11,0,.2-.09.2-.2,0-.15-.2-.2-.21-.2-5.4-1.37-9.39-6.24-9.39-12.06,0-6.88,5.58-12.46,12.46-12.46h12.55c6.83,0,12.36-5.63,12.36-12.46h-24.91Z"/>
+      <path class="cls-3" d="m141.17,82.09h0c13.76,0,24.91-11.15,24.91-24.91,0-4.54-1.22-8.79-3.34-12.46h-18.52c-.11,0-.2.09-.2.2,0,.15.2.2.21.2,5.4,1.37,9.39,6.24,9.39,12.06,0,6.88-5.58,12.46-12.46,12.46h-12.55c-6.83,0-12.36,5.63-12.36,12.46h24.91Z"/>
+      <text class="cls-7" transform="translate(186.82 83.38) rotate(-90)"><tspan class="cls-6" x="0" y="0">ma</tspan><tspan class="cls-5" x="42.36" y="0">r</tspan><tspan class="cls-8" x="54.5" y="0">t</tspan></text>
+    </g>
+  </g>
+</svg>
