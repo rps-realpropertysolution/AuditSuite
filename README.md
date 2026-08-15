@@ -67,7 +67,22 @@ Abra o **SQL Editor** do projeto Supabase, cole o conteúdo de
 `supabase/migrations/20260815000000_rgm_schema.sql` e execute. É idempotente — rodar de novo não
 quebra nada. Isso cria tabelas, RLS, o bucket de fotos e o gatilho de criação de perfil.
 
-### 4.2 Variáveis de ambiente
+> Já aplicado no projeto `yboyvbtnvecdcnrzgxtd`: 5 tabelas com RLS ativa, 9 policies,
+> 4 policies de Storage e o bucket privado `relatorio-fotos`.
+
+### 4.2 Confirmação de e-mail
+
+O projeto está com **confirmação de e-mail exigida**: quem se cadastra recebe um link e só
+consegue entrar depois de clicar nele. A tela de login já trata esse caso e avisa o usuário.
+
+Para uma ferramenta interna costuma ser mais prático desligar, em
+**Authentication → Sign In / Providers → Email → Confirm email**. Se preferir manter ligado,
+confirme que o SMTP está configurado — o SMTP padrão do Supabase tem limite baixo de envio.
+
+Alternativa para contas internas: criar o usuário já confirmado pelo painel em
+**Authentication → Users → Add user** (marcando *Auto Confirm User*).
+
+### 4.3 Variáveis de ambiente
 
 ```bash
 cp .env.example .env
@@ -78,7 +93,7 @@ Preencha com **Project URL** e a chave **anon/publishable** (Dashboard → Proje
 > A chave `service_role` ignora todas as regras de segurança do banco. Ela nunca vai no
 > frontend nem no Git. O `.env` está no `.gitignore`.
 
-### 4.3 Rodar
+### 4.4 Rodar
 
 ```bash
 npm install
@@ -98,6 +113,20 @@ npm run lint
 O vínculo do cliente externo com o ativo é feito na tabela `empreendimento_acessos`.
 Quem se cadastra recebe o papel `gestor` por padrão — ajuste em `user_roles` conforme a política
 interna. As regras são aplicadas por **RLS no banco**, não apenas na interface.
+
+Verificado contra o banco real, com um usuário `gestor` e um `sindico`:
+
+| Cenário | Resultado |
+| --- | --- |
+| Gestor cria empreendimento e relatório | permitido |
+| Segundo relatório na mesma competência | recusado (`409`) |
+| Síndico sem vínculo consulta o ativo | não retorna nada |
+| Síndico vinculado consulta o ativo | retorna o ativo |
+| Síndico consulta relatório em rascunho | não retorna nada |
+| Síndico consulta o mesmo relatório publicado | retorna |
+| Síndico tenta editar relatório | 0 linhas afetadas |
+| Síndico tenta criar empreendimento | recusado (`403`) |
+| Síndico tenta se promover a diretoria | recusado (`403`) |
 
 ## 6. Fluxo de trabalho
 
