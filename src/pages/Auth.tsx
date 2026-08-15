@@ -118,33 +118,35 @@ const Auth = () => {
           backgroundPosition: "center",
         }}
       >
-        <img src={logoRps} alt="RPS Global" className="h-14 w-auto brightness-0 invert" />
+        <img src={logoRps} alt="RPS Real Property Solution" className="h-14 w-auto brightness-0 invert" />
 
-        <div className="max-w-lg space-y-5">
-          <h2 className="text-4xl font-bold leading-tight">
-            Relatório Gerencial Mensal, sem Excel e sem PowerPoint.
-          </h2>
-          <p className="text-lg leading-relaxed text-executive-foreground/85">
-            O gestor lança os números uma vez. O sumário executivo, os semáforos e as tendências se
-            montam sozinhos — e o síndico recebe um relatório que dá para entender.
+        <div className="max-w-lg">
+          <p className="text-sm font-semibold uppercase tracking-[0.28em] text-executive-foreground/70">
+            Relatório Gerencial Mensal
           </p>
-          <ul className="space-y-2.5 pt-2 text-sm">
-            {[
-              "O mês novo já nasce preenchido com a estrutura do anterior",
-              "Status de documento calculado pela data de validade",
-              "Modo apresentação pronto para a reunião de prestação de contas",
-            ].map((item) => (
-              <li key={item} className="flex items-start gap-2.5">
-                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
-                <span className="text-executive-foreground/90">{item}</span>
-              </li>
-            ))}
-          </ul>
+          <h2 className="mt-4 text-4xl font-bold leading-tight">
+            Qualidade e confiança
+            <br />
+            para seu patrimônio.
+          </h2>
+          <p className="mt-6 text-lg leading-relaxed text-executive-foreground/85">
+            Plataforma de prestação de contas dos empreendimentos administrados pela RPS Real
+            Property Solution, destinada a gestores, síndicos e proprietários.
+          </p>
         </div>
 
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-executive-foreground/60">
-          RPS Real Property Solution · Property Management
-        </p>
+        <div className="space-y-3 border-t border-executive-foreground/20 pt-5">
+          <p className="flex items-start gap-2.5 text-xs leading-relaxed text-executive-foreground/70">
+            <ShieldCheck className="mt-px h-4 w-4 shrink-0 text-accent" />
+            <span>
+              Acesso restrito. As informações desta plataforma são confidenciais e de uso exclusivo
+              dos usuários autorizados.
+            </span>
+          </p>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-executive-foreground/50">
+            © {new Date().getFullYear()} RPS Real Property Solution
+          </p>
+        </div>
       </aside>
 
       {/* Formulário */}
@@ -153,12 +155,12 @@ const Auth = () => {
           <img src={logoRps} alt="RPS Global" className="mb-8 h-12 w-auto lg:hidden" />
 
           <h1 className="text-2xl font-bold text-foreground">
-            {aba === "entrar" ? "Entrar na plataforma" : "Criar sua conta"}
+            {aba === "entrar" ? "Acessar a plataforma" : "Solicitar acesso"}
           </h1>
           <p className="mt-1.5 text-sm text-muted-foreground">
             {aba === "entrar"
-              ? "Use o e-mail corporativo cadastrado pela RPS."
-              : "Sua conta começa com acesso de gestor."}
+              ? "Informe suas credenciais de acesso."
+              : "Use o e-mail corporativo. Demais cadastros passam por liberação da administração."}
           </p>
 
           <div
@@ -179,7 +181,7 @@ const Auth = () => {
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                {valor === "entrar" ? "Entrar" : "Criar conta"}
+                {valor === "entrar" ? "Entrar" : "Solicitar acesso"}
               </button>
             ))}
           </div>
@@ -271,8 +273,8 @@ const Auth = () => {
             </button>
           </form>
 
-          <p className="mt-8 text-center text-xs text-muted-foreground">
-            RPS Global · Relatório Gerencial Mensal
+          <p className="mt-8 text-center text-xs text-muted-foreground lg:hidden">
+            RPS Real Property Solution · Acesso restrito
           </p>
         </div>
       </main>

@@ -10,6 +10,8 @@ interface AuthContextValue {
   papeis: Papel[];
   /** Time RPS (diretoria/gestor): edita relatórios. Cliente externo só lê. */
   interno: boolean;
+  /** Autenticado, mas sem papel: aguardando liberação da administração. */
+  pendente: boolean;
   loading: boolean;
   signOut: () => Promise<void>;
 }
@@ -21,6 +23,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [perfil, setPerfil] = useState<Perfil | null>(null);
   const [papeis, setPapeis] = useState<Papel[]>([]);
+  const [papeisCarregados, setPapeisCarregados] = useState(false);
   const [loading, setLoading] = useState(true);
 
   /**
@@ -34,6 +37,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     ]);
     setPerfil((p as Perfil) ?? null);
     setPapeis(((r ?? []) as { role: Papel }[]).map((x) => x.role));
+    setPapeisCarregados(true);
   }, []);
 
   useEffect(() => {
@@ -46,6 +50,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (!nova?.user) {
         setPerfil(null);
         setPapeis([]);
+        setPapeisCarregados(false);
       }
     });
 
@@ -75,6 +80,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     await supabase.auth.signOut();
     setPerfil(null);
     setPapeis([]);
+    setPapeisCarregados(false);
   }, []);
 
   const valor = useMemo<AuthContextValue>(
@@ -83,13 +89,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       session,
       perfil,
       papeis,
-      // Enquanto os papéis não chegaram, assume interno para não esconder a UI
-      // de edição de um gestor legítimo num piscar de tela.
-      interno: papeis.length === 0 ? true : papeis.some((p) => p === "diretoria" || p === "gestor"),
-      loading,
+      // Sem papel confirmado, ninguém é interno. Uma versão anterior assumia
+      // `interno` enquanto os papéis carregavam, para evitar um piscar de tela
+      // — o que liberava a interface de edição para quem ainda não foi
+      // autorizado. Preferir o estado de carregamento a errar para o lado
+      // permissivo. (A RLS no banco barra de qualquer forma; isto é a camada
+      // de interface, que deve concordar com ela.)
+      interno: papeis.some((p) => p === "diretoria" || p === "gestor"),
+      pendente: papeisCarregados && papeis.length === 0,
+      // Só termina de carregar quando os papéis chegaram: o roteador precisa
+      // deles para decidir entre a aplicação e a tela de acesso em análise.
+      loading: loading || (Boolean(user) && !papeisCarregados),
       signOut,
     }),
-    [user, session, perfil, papeis, loading, signOut],
+    [user, session, perfil, papeis, papeisCarregados, loading, signOut],
   );
 
   return <AuthContext.Provider value={valor}>{children}</AuthContext.Provider>;

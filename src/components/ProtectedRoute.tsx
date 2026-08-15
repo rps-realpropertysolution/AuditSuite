@@ -2,9 +2,10 @@ import { type ReactNode } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import AcessoEmAnalise from "@/pages/AcessoEmAnalise";
 
 const ProtectedRoute = ({ children }: { children: ReactNode }) => {
-  const { user, loading } = useAuth();
+  const { user, pendente, loading } = useAuth();
   const location = useLocation();
 
   if (loading) {
@@ -18,6 +19,9 @@ const ProtectedRoute = ({ children }: { children: ReactNode }) => {
 
   // Guarda o destino para voltar a ele depois do login
   if (!user) return <Navigate to="/auth" replace state={{ de: location.pathname }} />;
+
+  // Autenticado mas ainda sem papel: nenhuma tela da aplicação faz sentido.
+  if (pendente) return <AcessoEmAnalise />;
 
   return <>{children}</>;
 };

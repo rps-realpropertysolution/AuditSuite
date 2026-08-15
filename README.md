@@ -110,9 +110,20 @@ npm run lint
 | `diretoria`, `gestor` | todos os empreendimentos, inclusive rascunhos | sim |
 | `sindico`, `proprietario` | só os ativos vinculados, só relatórios **publicados** | não |
 
-O vínculo do cliente externo com o ativo é feito na tabela `empreendimento_acessos`.
-Quem se cadastra recebe o papel `gestor` por padrão — ajuste em `user_roles` conforme a política
-interna. As regras são aplicadas por **RLS no banco**, não apenas na interface.
+### Como alguém ganha acesso
+
+O cadastro **não concede acesso automaticamente**. A regra está em `handle_new_user`:
+
+- e-mail no domínio corporativo (`@rpsglobal.com.br`) → recebe `gestor` e entra direto;
+- qualquer outro e-mail → fica **sem papel** e vê a tela *Acesso em análise*.
+
+Para liberar um síndico ou proprietário são dois passos, ambos deliberados:
+
+1. inserir o vínculo em `empreendimento_acessos` (usuário ↔ empreendimento);
+2. conceder o papel em `user_roles` (`sindico` ou `proprietario`).
+
+Quem tem papel `diretoria` pode fazer isso pela própria aplicação; os demais só via banco.
+As regras são aplicadas por **RLS no banco**, não apenas na interface.
 
 Verificado contra o banco real, com um usuário `gestor` e um `sindico`:
 
