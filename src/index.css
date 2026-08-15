@@ -1,0 +1,209 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    --background: 210 28% 97%;
+    --foreground: 215 32% 15%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 215 32% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 215 32% 15%;
+
+    --primary: 203 86% 28%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 176 55% 35%;
+    --secondary-foreground: 180 35% 96%;
+
+    --muted: 210 22% 92%;
+    --muted-foreground: 214 15% 43%;
+
+    --accent: 41 88% 58%;
+    --accent-foreground: 30 35% 14%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 209 21% 84%;
+    --input: 209 21% 84%;
+    --ring: 203 86% 28%;
+
+    --radius: 0.5rem;
+
+    /* Semáforo — a linguagem de status que a RPS já usa no relatório */
+    --semaforo-verde: 152 58% 33%;
+    --semaforo-amarelo: 38 92% 45%;
+    --semaforo-vermelho: 0 72% 46%;
+
+    --success: 152 55% 35%;
+    --success-foreground: 145 45% 96%;
+    --warning: 32 94% 52%;
+    --warning-foreground: 28 45% 13%;
+    --occupancy: 203 86% 28%;
+    --occupancy-foreground: 210 40% 98%;
+    --delinquency: 348 72% 43%;
+    --delinquency-foreground: 0 0% 100%;
+    --workorder: 176 55% 35%;
+    --workorder-foreground: 180 35% 96%;
+    --backlog: 269 45% 38%;
+    --backlog-foreground: 270 35% 96%;
+    --executive: 218 42% 19%;
+    --executive-foreground: 210 40% 98%;
+    --surface-raised: 0 0% 100%;
+    --surface-soft: 204 38% 94%;
+    --gradient-board: linear-gradient(135deg, hsl(218 42% 19%), hsl(203 86% 28%) 52%, hsl(176 55% 35%));
+    --gradient-panel: linear-gradient(180deg, hsl(0 0% 100% / 0.96), hsl(204 38% 94% / 0.88));
+    --shadow-executive: 0 18px 50px -24px hsl(218 42% 19% / 0.45);
+    --shadow-kpi: 0 14px 35px -22px hsl(203 86% 28% / 0.65);
+
+    --sidebar-background: 0 0% 98%;
+
+    --sidebar-foreground: 240 5.3% 26.1%;
+
+    --sidebar-primary: 240 5.9% 10%;
+
+    --sidebar-primary-foreground: 0 0% 98%;
+
+    --sidebar-accent: 240 4.8% 95.9%;
+
+    --sidebar-accent-foreground: 240 5.9% 10%;
+
+    --sidebar-border: 220 13% 91%;
+
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: Montserrat, ui-sans-serif, system-ui, sans-serif;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+}
+
+@layer utilities {
+  .executive-grid {
+    background-image:
+      linear-gradient(hsl(var(--primary) / 0.08) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--primary) / 0.08) 1px, transparent 1px);
+    background-size: 34px 34px;
+  }
+
+  .glass-panel {
+    background: var(--gradient-panel);
+    box-shadow: var(--shadow-executive);
+    backdrop-filter: blur(18px);
+  }
+
+  .reduce-motion-safe {
+    transform: translateZ(0);
+  }
+}
+
+/* O relatório impresso existe no DOM o tempo todo, mas só aparece na impressão.
+   Assim o Ctrl+P do navegador gera o PDF sem precisar de uma rota separada. */
+.print-report {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 0;
+  }
+
+  html,
+  body {
+    background: #fff;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Some com a interface de edição e com qualquer coisa marcada como só-tela */
+  .screen-only,
+  header.sticky,
+  nav[aria-label="Seções do relatório"] {
+    display: none !important;
+  }
+
+  .print-report {
+    display: block !important;
+  }
+
+  .print-page {
+    width: 210mm;
+    min-height: 297mm;
+    page-break-after: always;
+    break-after: page;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .print-page:last-child {
+    page-break-after: auto;
+    break-after: auto;
+  }
+
+  /* Não parte tabela, figura nem bloco de análise no meio da página */
+  table,
+  figure,
+  .break-inside-avoid {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+}
