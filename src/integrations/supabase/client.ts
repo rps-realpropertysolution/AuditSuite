@@ -4,23 +4,40 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 /**
- * Falha alto e cedo. A versão anterior caía num fallback para localhost com
- * chave placeholder, então o login "não funcionava" sem nenhuma pista do porquê.
+ * Quais variáveis faltam. Exportado para a tela de diagnóstico.
+ *
+ * Este módulo NÃO lança erro quando a configuração está ausente: um `throw`
+ * aqui acontece durante o import, antes de o React montar, e o resultado é uma
+ * tela branca sem explicação — que foi exatamente o que aconteceu no primeiro
+ * deploy na Vercel. Em vez disso, `main.tsx` checa `supabaseConfigurado` e
+ * renderiza uma tela dizendo o que precisa ser feito.
  */
-if (!SUPABASE_URL || !SUPABASE_KEY) {
-  throw new Error(
-    "Supabase não configurado. Copie .env.example para .env e preencha " +
-      "VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY.",
-  );
-}
+export const calcularVariaveisAusentes = (
+  url: string | undefined,
+  chave: string | undefined,
+): string[] =>
+  [
+    url?.trim() ? null : "VITE_SUPABASE_URL",
+    chave?.trim() ? null : "VITE_SUPABASE_ANON_KEY",
+  ].filter((v): v is string => v !== null);
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
-  auth: {
-    storage: typeof window !== "undefined" ? window.localStorage : undefined,
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
+export const variaveisAusentes = calcularVariaveisAusentes(SUPABASE_URL, SUPABASE_KEY);
+
+export const supabaseConfigurado = variaveisAusentes.length === 0;
+
+// Valores inertes só para o cliente poder ser construído. Se forem usados,
+// as chamadas falham — mas nesse caso a tela de diagnóstico já está no ar.
+export const supabase = createClient(
+  SUPABASE_URL || "https://configuracao-ausente.supabase.co",
+  SUPABASE_KEY || "configuracao-ausente",
+  {
+    auth: {
+      storage: typeof window !== "undefined" ? window.localStorage : undefined,
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+    },
   },
-});
+);
 
 export const BUCKET_FOTOS = "relatorio-fotos";
