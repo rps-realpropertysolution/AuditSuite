@@ -3,9 +3,17 @@ import { relatorioEmBranco, herdarDoMesAnterior, normalizarDados, novoId } from 
 import {
   calcularIndiceExecutivo,
   contarContratos,
+  despesaTotal,
   inadimplenciaTotal,
   indicadores360,
+  percentualPreventiva,
+  percentualRealizado,
+  receitaTotal,
+  saldoFundo,
+  saldoTotal,
   situacaoDocumento,
+  totalManutencoes,
+  totalRubrica,
   variacao,
 } from "@/lib/metrics";
 import { lerNumero, formatarVariacao, competenciaAnterior } from "@/lib/format";
@@ -82,20 +90,46 @@ describe("situacaoDocumento — status derivado da data", () => {
   });
 });
 
+/** Monta os fundos de forma que os totais batam com os valores desejados. */
+const comFinanceiro = (creditos: number, debitos: number, anterior = 0) => {
+  const d = relatorioEmBranco();
+  d.financeiro.fundos = [{ id: novoId(), fundo: "Ordinária", anterior, creditos, debitos }];
+  return d;
+};
+
+describe("financeiro — totais derivados da tabela por fundo", () => {
+  it("soma créditos, débitos e saldo das linhas", () => {
+    const d = relatorioEmBranco();
+    // Valores reais do relatório de junho, abertos por fundo
+    d.financeiro.fundos = [
+      { id: novoId(), fundo: "Ordinária", anterior: 15_148.6, creditos: 169_759.73, debitos: 194_576.35 },
+      { id: novoId(), fundo: "Fundo de reserva", anterior: 193_169.92, creditos: 8_390.44, debitos: 8_290.0 },
+      { id: novoId(), fundo: "Fundo privativo", anterior: -6_419.31, creditos: 116_632.19, debitos: 120_756.94 },
+      { id: novoId(), fundo: "Lavanderia", anterior: 30_219.22, creditos: 5_518.04, debitos: 0 },
+      { id: novoId(), fundo: "Locação de área comum", anterior: 13_511.63, creditos: 1_150.0, debitos: 1_150.0 },
+    ];
+
+    expect(receitaTotal(d)).toBeCloseTo(301_450.4, 2);
+    expect(despesaTotal(d)).toBeCloseTo(324_773.29, 2);
+    expect(saldoTotal(d)).toBeCloseTo(222_307.17, 2);
+  });
+
+  it("saldo por linha é anterior + créditos - débitos", () => {
+    expect(saldoFundo({ id: "x", fundo: "Ordinária", anterior: 15_148.6, creditos: 169_759.73, debitos: 194_576.35 }))
+      .toBeCloseTo(-9_668.02, 2);
+  });
+});
+
 describe("indicadores360 — o sumário executivo que se monta sozinho", () => {
   it("acusa vermelho quando a despesa supera muito a receita", () => {
-    const d = relatorioEmBranco();
-    d.financeiro.receita = 100_000;
-    d.financeiro.despesa = 130_000;
-
+    const d = comFinanceiro(100_000, 130_000);
     const resultado = indicadores360(d, HOJE).find((i) => i.id === "resultado");
     expect(resultado?.semaforo).toBe("vermelho");
   });
 
   it("aceita despesa levemente acima da receita como amarelo", () => {
-    const d = relatorioEmBranco();
-    d.financeiro.receita = 301_450.49;
-    d.financeiro.despesa = 324_773.29; // +7,7% — o caso do relatório de junho
+    // +7,7% — o caso do relatório de junho
+    const d = comFinanceiro(301_450.49, 324_773.29);
     expect(indicadores360(d, HOJE).find((i) => i.id === "resultado")?.semaforo).toBe("amarelo");
   });
 
@@ -130,9 +164,7 @@ describe("calcularIndiceExecutivo", () => {
   });
 
   it("fica entre 0 e 100", () => {
-    const d = relatorioEmBranco();
-    d.financeiro.receita = 100_000;
-    d.financeiro.despesa = 90_000;
+    const d = comFinanceiro(100_000, 90_000, 50_000);
     const nota = calcularIndiceExecutivo(d, HOJE);
     expect(nota).not.toBeNull();
     expect(nota!).toBeGreaterThanOrEqual(0);
@@ -140,23 +172,65 @@ describe("calcularIndiceExecutivo", () => {
   });
 });
 
-describe("inadimplencia", () => {
-  it("consolida a posição do período", () => {
+describe("inadimplencia por rubrica", () => {
+  it("consolida a posição do período somando as rubricas", () => {
     const d = relatorioEmBranco();
-    d.juridico.inadimplencia = {
-      posicaoAnterior: 58_041.37,
-      recebidoNoMes: 3_124.41,
-      emAtrasoNoMes: 9_898.19,
-    };
-    // Valores reais do relatório de junho: total consolidado R$ 64.815,15
+    // Abertura real do relatório de junho — total consolidado R$ 64.815,15
+    d.juridico.inadimplencia.rubricas = [
+      { id: novoId(), rubrica: "Ordinária", ateAnterior: 36_227.09, recebido: 1_742.06, doMes: 5_619.63 },
+      { id: novoId(), rubrica: "Fundo de reserva", ateAnterior: 1_475.76, recebido: 87.1, doMes: 280.97 },
+      { id: novoId(), rubrica: "Fundo privativo", ateAnterior: 20_123.04, recebido: 1_295.25, doMes: 3_997.59 },
+      { id: novoId(), rubrica: "Arrecadação extra", ateAnterior: 215.48, recebido: 0, doMes: 0 },
+    ];
     expect(inadimplenciaTotal(d)).toBeCloseTo(64_815.15, 2);
+  });
+
+  it("total de uma rubrica é ateAnterior - recebido + doMes", () => {
+    expect(
+      totalRubrica({ id: "x", rubrica: "Ordinária", ateAnterior: 36_227.09, recebido: 1_742.06, doMes: 5_619.63 }),
+    ).toBeCloseTo(40_104.66, 2);
+  });
+});
+
+describe("agregado de manutenção", () => {
+  const comResumo = (p: number, c: number, a: number, r: number, nr: number) => {
+    const d = relatorioEmBranco();
+    d.operacao.resumo = { preventivas: p, corretivas: c, acompanhamentos: a, rondas: r, naoRealizadas: nr };
+    return d;
+  };
+
+  it("soma o total executado", () => {
+    // Números do dashboard real: 33 preventivas, 18 corretivas, 38 acomp., 166 rondas
+    expect(totalManutencoes(comResumo(33, 18, 38, 166, 0))).toBe(255);
+  });
+
+  it("calcula a proporção de preventiva sobre preventiva + corretiva", () => {
+    // 33 / (33+18) = 64,7%
+    expect(percentualPreventiva(comResumo(33, 18, 38, 166, 0))).toBeCloseTo(64.7, 1);
+  });
+
+  it("100% executado quando não há ordens em aberto", () => {
+    expect(percentualRealizado(comResumo(33, 18, 38, 166, 0))).toBe(100);
+  });
+
+  it("desconta as não realizadas do percentual de execução", () => {
+    // 255 executadas de 255+45 programadas = 85%
+    expect(percentualRealizado(comResumo(33, 18, 38, 166, 45))).toBeCloseTo(85, 1);
+  });
+
+  it("sem lançamento nenhum, devolve null em vez de zero", () => {
+    expect(percentualPreventiva(relatorioEmBranco())).toBeNull();
+    expect(percentualRealizado(relatorioEmBranco())).toBeNull();
   });
 });
 
 describe("herdarDoMesAnterior — o que corta a redigitação", () => {
   const montarMesFechado = (): DadosRelatorio => {
     const d = relatorioEmBranco();
-    d.financeiro.saldoConta = 222_307.17;
+    d.financeiro.fundos = [
+      { id: novoId(), fundo: "Ordinária", anterior: 15_148.6, creditos: 169_759.73, debitos: 194_576.35 },
+      { id: novoId(), fundo: "Fundo de reserva", anterior: 193_169.92, creditos: 8_390.44, debitos: 8_290.0 },
+    ];
     d.financeiro.grupos = [
       { id: novoId(), grupo: "Limpeza", orcado: 34_673.34, realizado: 34_004.09, observacao: "ok" },
     ];
@@ -167,13 +241,18 @@ describe("herdarDoMesAnterior — o que corta a redigitação", () => {
         unidade: "m³",
         consumo: 4_080,
         consumoAnterior: 3_900,
+        ponta: 0,
+        foraPonta: 0,
+        faltas: 0,
         detalhamento: "136 m³/dia",
         fatura: 59_357,
         faturaAnterior: 55_000,
         observacao: "",
       },
     ];
-    d.juridico.inadimplencia = { posicaoAnterior: 58_041.37, recebidoNoMes: 3_124.41, emAtrasoNoMes: 9_898.19 };
+    d.juridico.inadimplencia.rubricas = [
+      { id: novoId(), rubrica: "Ordinária", ateAnterior: 58_041.37, recebido: 3_124.41, doMes: 9_898.19 },
+    ];
     d.contratos.linhas = [
       { id: novoId(), fornecedor: "Lavanderia", objeto: "Lavanderia", situacao: "vencido", vencimento: "", observacao: "" },
     ];
@@ -184,11 +263,34 @@ describe("herdarDoMesAnterior — o que corta a redigitação", () => {
     return d;
   };
 
-  it("encadeia o saldo e a inadimplência", () => {
+  it("encadeia o saldo de cada fundo e zera o movimento", () => {
+    const anterior = montarMesFechado();
+    const novo = herdarDoMesAnterior(anterior);
+
+    // saldo de fechamento de cada fundo vira o "anterior" do mês seguinte
+    expect(novo.financeiro.fundos[0].anterior).toBeCloseTo(-9_668.02, 2);
+    expect(novo.financeiro.fundos[1].anterior).toBeCloseTo(193_270.36, 2);
+    expect(saldoTotal(novo)).toBeCloseTo(saldoTotal(anterior), 2);
+    expect(receitaTotal(novo)).toBe(0);
+    expect(despesaTotal(novo)).toBe(0);
+  });
+
+  it("encadeia a inadimplência por rubrica", () => {
     const novo = herdarDoMesAnterior(montarMesFechado());
-    expect(novo.financeiro.saldoConta).toBeCloseTo(222_307.17, 2);
-    expect(novo.juridico.inadimplencia.posicaoAnterior).toBeCloseTo(64_815.15, 2);
-    expect(novo.juridico.inadimplencia.emAtrasoNoMes).toBe(0);
+    expect(novo.juridico.inadimplencia.rubricas[0].ateAnterior).toBeCloseTo(64_815.15, 2);
+    expect(novo.juridico.inadimplencia.rubricas[0].doMes).toBe(0);
+    expect(novo.juridico.inadimplencia.rubricas[0].recebido).toBe(0);
+  });
+
+  it("mantém as disciplinas acompanhadas e zera a contagem", () => {
+    const anterior = montarMesFechado();
+    anterior.operacao.disciplinas = [{ id: novoId(), disciplina: "Elétrica", quantidade: 154 }];
+    anterior.operacao.resumo = { preventivas: 33, corretivas: 18, acompanhamentos: 38, rondas: 166, naoRealizadas: 0 };
+
+    const novo = herdarDoMesAnterior(anterior);
+    expect(novo.operacao.disciplinas[0].disciplina).toBe("Elétrica");
+    expect(novo.operacao.disciplinas[0].quantidade).toBe(0);
+    expect(totalManutencoes(novo)).toBe(0);
   });
 
   it("transforma o consumo do mês na base de comparação do mês seguinte", () => {
@@ -221,15 +323,32 @@ describe("herdarDoMesAnterior — o que corta a redigitação", () => {
 
 describe("normalizarDados — tolerância a dados antigos ou corrompidos", () => {
   it("devolve o relatório em branco quando o JSON é lixo", () => {
-    expect(normalizarDados(null).versao).toBe(2);
-    expect(normalizarDados("texto solto").versao).toBe(2);
-    expect(normalizarDados(42).versao).toBe(2);
+    expect(normalizarDados(null).versao).toBe(3);
+    expect(normalizarDados("texto solto").versao).toBe(3);
+    expect(normalizarDados(42).versao).toBe(3);
   });
 
   it("preserva o que reconhece e ignora o resto", () => {
-    const d = normalizarDados({ financeiro: { receita: 1000, campoInventado: true } });
-    expect(d.financeiro.receita).toBe(1000);
+    const d = normalizarDados({
+      financeiro: { fundos: [{ id: "a", fundo: "Ordinária", creditos: 1000 }], campoInventado: true },
+    });
+    expect(receitaTotal(d)).toBe(1000);
     expect(d.utilidades.linhas.length).toBeGreaterThan(0);
+  });
+
+  it("migra relatório gravado na versão anterior sem perder valores", () => {
+    // v2 guardava receita/despesa/saldo soltos e a inadimplência em 3 números
+    const d = normalizarDados({
+      versao: 2,
+      financeiro: { receita: 301_450.4, despesa: 324_773.29, saldoConta: 222_307.17 },
+      juridico: { inadimplencia: { posicaoAnterior: 58_041.37, recebidoNoMes: 3_124.41, emAtrasoNoMes: 9_898.19 } },
+    });
+
+    expect(d.versao).toBe(3);
+    expect(receitaTotal(d)).toBeCloseTo(301_450.4, 2);
+    expect(despesaTotal(d)).toBeCloseTo(324_773.29, 2);
+    expect(saldoTotal(d)).toBeCloseTo(222_307.17, 2);
+    expect(inadimplenciaTotal(d)).toBeCloseTo(64_815.15, 2);
   });
 
   it("descarta valores de enum inválidos em vez de propagá-los", () => {

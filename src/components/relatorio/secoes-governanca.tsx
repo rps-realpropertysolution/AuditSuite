@@ -10,7 +10,15 @@ import {
 import { ComentarioGestor, Secao, TabelaEditavel, type Coluna } from "./blocos";
 import { novoId } from "@/lib/defaults";
 import { formatarMoeda } from "@/lib/format";
-import { contarContratos, contarDocumentos, inadimplenciaTotal, situacaoDocumento } from "@/lib/metrics";
+import {
+  contarContratos,
+  contarDocumentos,
+  inadimplenciaDoMes,
+  inadimplenciaRecebida,
+  inadimplenciaTotal,
+  situacaoDocumento,
+  totalRubrica,
+} from "@/lib/metrics";
 import type {
   DadosRelatorio,
   LinhaContrato,
@@ -18,6 +26,7 @@ import type {
   LinhaProcesso,
   LinhaProximoPasso,
   LinhaRisco,
+  LinhaRubricaInadimplencia,
 } from "@/lib/types";
 import type { PropsSecao } from "./secoes-financeiro";
 
@@ -271,6 +280,60 @@ export const SecaoJuridico = ({ dados, atualizar, somenteLeitura }: PropsSecao) 
   const setInad = (patch: Partial<DadosRelatorio["juridico"]["inadimplencia"]>) =>
     set({ inadimplencia: { ...jur.inadimplencia, ...patch } });
 
+  const colunasRubrica: Coluna<LinhaRubricaInadimplencia>[] = [
+    {
+      chave: "rubrica",
+      titulo: "Rubrica",
+      largura: "min-w-[200px]",
+      render: (l, up) => (
+        <CampoTexto
+          valor={l.rubrica}
+          desabilitado={somenteLeitura}
+          onChange={(v) => up({ rubrica: v })}
+          placeholder="Ex.: Ordinária"
+        />
+      ),
+    },
+    {
+      chave: "ateAnterior",
+      titulo: "Até o mês anterior",
+      largura: "w-44",
+      alinhar: "direita",
+      render: (l, up) => (
+        <CampoMoeda valor={l.ateAnterior} desabilitado={somenteLeitura} onChange={(v) => up({ ateAnterior: v })} />
+      ),
+    },
+    {
+      chave: "recebido",
+      titulo: "Recebido",
+      largura: "w-40",
+      alinhar: "direita",
+      render: (l, up) => (
+        <CampoMoeda valor={l.recebido} desabilitado={somenteLeitura} onChange={(v) => up({ recebido: v })} />
+      ),
+    },
+    {
+      chave: "doMes",
+      titulo: "Do mês",
+      largura: "w-40",
+      alinhar: "direita",
+      render: (l, up) => (
+        <CampoMoeda valor={l.doMes} desabilitado={somenteLeitura} onChange={(v) => up({ doMes: v })} />
+      ),
+    },
+    {
+      chave: "total",
+      titulo: "Total",
+      largura: "w-40",
+      alinhar: "direita",
+      render: (l) => (
+        <span className="block px-3 py-2 text-sm font-bold tabular-nums">
+          {formatarMoeda(totalRubrica(l))}
+        </span>
+      ),
+    },
+  ];
+
   const colunas: Coluna<LinhaProcesso>[] = [
     {
       chave: "numero",
@@ -340,39 +403,41 @@ export const SecaoJuridico = ({ dados, atualizar, somenteLeitura }: PropsSecao) 
       descricao="Processos em andamento e evolução da posição de inadimplência."
     >
       <div>
-        <h3 className="mb-3 text-sm font-bold">Posição de inadimplência</h3>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <Campo label="Posição do mês anterior">
-            <CampoMoeda
-              valor={jur.inadimplencia.posicaoAnterior}
-              desabilitado={somenteLeitura}
-              onChange={(v) => setInad({ posicaoAnterior: v })}
-            />
-          </Campo>
-          <Campo label="Recebido no mês">
-            <CampoMoeda
-              valor={jur.inadimplencia.recebidoNoMes}
-              desabilitado={somenteLeitura}
-              onChange={(v) => setInad({ recebidoNoMes: v })}
-            />
-          </Campo>
-          <Campo label="Novo atraso no mês">
-            <CampoMoeda
-              valor={jur.inadimplencia.emAtrasoNoMes}
-              desabilitado={somenteLeitura}
-              onChange={(v) => setInad({ emAtrasoNoMes: v })}
-            />
-          </Campo>
-          <div className="rounded-lg border border-border bg-surface-soft p-3">
-            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Total consolidado
-            </span>
-            <strong className="mt-1 block text-xl tabular-nums text-foreground">
-              {formatarMoeda(inadimplenciaTotal(dados))}
-            </strong>
-            <span className="text-xs text-muted-foreground">calculado automaticamente</span>
-          </div>
-        </div>
+        <h3 className="mb-1 text-sm font-bold">Posição de inadimplência</h3>
+        <p className="mb-3 text-xs text-muted-foreground">
+          Por rubrica, como sai do sistema contábil. O total consolidado é calculado, e a posição de
+          fechamento vira a abertura do mês seguinte automaticamente.
+        </p>
+        <TabelaEditavel
+          linhas={jur.inadimplencia.rubricas}
+          colunas={colunasRubrica}
+          somenteLeitura={somenteLeitura}
+          onChange={(rubricas) => setInad({ rubricas })}
+          novaLinha={() => ({ id: novoId(), rubrica: "", ateAnterior: 0, recebido: 0, doMes: 0 })}
+          rotuloAdicionar="Adicionar rubrica"
+          vazio={{
+            titulo: "Nenhuma rubrica lançada",
+            descricao: "Cadastre Ordinária, Fundo de Reserva e demais rubricas de arrecadação.",
+          }}
+          rodape={
+            <tr className="font-bold">
+              <td className="px-3 py-2.5">Totais</td>
+              <td className="px-3 py-2.5 text-right tabular-nums">
+                {formatarMoeda(jur.inadimplencia.rubricas.reduce((s, r) => s + r.ateAnterior, 0))}
+              </td>
+              <td className="px-3 py-2.5 text-right tabular-nums">
+                {formatarMoeda(inadimplenciaRecebida(dados))}
+              </td>
+              <td className="px-3 py-2.5 text-right tabular-nums">
+                {formatarMoeda(inadimplenciaDoMes(dados))}
+              </td>
+              <td className="px-3 py-2.5 text-right tabular-nums">
+                {formatarMoeda(inadimplenciaTotal(dados))}
+              </td>
+              {!somenteLeitura ? <td /> : null}
+            </tr>
+          }
+        />
       </div>
 
       <div>

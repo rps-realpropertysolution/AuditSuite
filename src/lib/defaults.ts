@@ -16,12 +16,14 @@ export const novoId = () =>
 
 /** Relatório em branco com o esqueleto típico de um ativo administrado. */
 export const relatorioEmBranco = (): DadosRelatorio => ({
-  versao: 2,
+  versao: 3,
   sumario: { avaliacaoGeral: "", principaisResultados: [], pontosAtencao: [] },
   financeiro: {
-    receita: 0,
-    despesa: 0,
-    saldoConta: 0,
+    fundos: [
+      { id: novoId(), fundo: "Ordinária", anterior: 0, creditos: 0, debitos: 0 },
+      { id: novoId(), fundo: "Fundo de reserva", anterior: 0, creditos: 0, debitos: 0 },
+      { id: novoId(), fundo: "Fundo privativo / reembolsável", anterior: 0, creditos: 0, debitos: 0 },
+    ],
     grupos: [
       { id: novoId(), grupo: "Tarifas públicas e concessionárias", orcado: 0, realizado: 0, observacao: "" },
       { id: novoId(), grupo: "Contratos de manutenção", orcado: 0, realizado: 0, observacao: "" },
@@ -31,7 +33,20 @@ export const relatorioEmBranco = (): DadosRelatorio => ({
     ],
     comentario: "",
   },
-  operacao: { ocorrencias: [], acessosFixos: 0, acessosVisitantes: 0, ocupacao: 0, comentario: "" },
+  operacao: {
+    ocorrencias: [],
+    resumo: { preventivas: 0, corretivas: 0, acompanhamentos: 0, rondas: 0, naoRealizadas: 0 },
+    disciplinas: [
+      { id: novoId(), disciplina: "Elétrica", quantidade: 0 },
+      { id: novoId(), disciplina: "Hidráulica", quantidade: 0 },
+      { id: novoId(), disciplina: "Civil", quantidade: 0 },
+      { id: novoId(), disciplina: "CFTV", quantidade: 0 },
+    ],
+    acessosFixos: 0,
+    acessosVisitantes: 0,
+    ocupacao: 0,
+    comentario: "",
+  },
   fornecedores: { linhas: [], comentario: "" },
   contratos: { linhas: [], comentario: "" },
   documentos: {
@@ -45,13 +60,19 @@ export const relatorioEmBranco = (): DadosRelatorio => ({
   },
   juridico: {
     processos: [],
-    inadimplencia: { posicaoAnterior: 0, recebidoNoMes: 0, emAtrasoNoMes: 0 },
+    inadimplencia: {
+      rubricas: [
+        { id: novoId(), rubrica: "Ordinária", ateAnterior: 0, recebido: 0, doMes: 0 },
+        { id: novoId(), rubrica: "Fundo de reserva", ateAnterior: 0, recebido: 0, doMes: 0 },
+        { id: novoId(), rubrica: "Fundo privativo / reembolsável", ateAnterior: 0, recebido: 0, doMes: 0 },
+      ],
+    },
     comentario: "",
   },
   utilidades: {
     linhas: [
-      { id: novoId(), utilidade: "Água", unidade: "m³", consumo: 0, consumoAnterior: 0, detalhamento: "", fatura: 0, faturaAnterior: 0, observacao: "" },
-      { id: novoId(), utilidade: "Energia", unidade: "kWh", consumo: 0, consumoAnterior: 0, detalhamento: "", fatura: 0, faturaAnterior: 0, observacao: "" },
+      { id: novoId(), utilidade: "Água", unidade: "m³", consumo: 0, consumoAnterior: 0, ponta: 0, foraPonta: 0, faltas: 0, detalhamento: "", fatura: 0, faturaAnterior: 0, observacao: "" },
+      { id: novoId(), utilidade: "Energia", unidade: "kWh", consumo: 0, consumoAnterior: 0, ponta: 0, foraPonta: 0, faltas: 0, detalhamento: "", fatura: 0, faturaAnterior: 0, observacao: "" },
     ],
     comentario: "",
   },
@@ -72,12 +93,17 @@ export const relatorioEmBranco = (): DadosRelatorio => ({
  * fatura do mês viram a base de comparação — a variação se monta sozinha.
  */
 export const herdarDoMesAnterior = (ant: DadosRelatorio): DadosRelatorio => ({
-  versao: 2,
+  versao: 3,
   sumario: { avaliacaoGeral: "", principaisResultados: [], pontosAtencao: [] },
   financeiro: {
-    receita: 0,
-    despesa: 0,
-    saldoConta: ant.financeiro.saldoConta, // saldo final abre o mês seguinte
+    // Encadeamento contábil por fundo: o saldo de fechamento abre o mês seguinte
+    fundos: ant.financeiro.fundos.map((f) => ({
+      id: novoId(),
+      fundo: f.fundo,
+      anterior: f.anterior + f.creditos - f.debitos,
+      creditos: 0,
+      debitos: 0,
+    })),
     grupos: ant.financeiro.grupos.map((g) => ({
       ...g,
       id: novoId(),
@@ -89,6 +115,9 @@ export const herdarDoMesAnterior = (ant: DadosRelatorio): DadosRelatorio => ({
   },
   operacao: {
     ocorrencias: [], // ocorrências são sempre do mês
+    resumo: { preventivas: 0, corretivas: 0, acompanhamentos: 0, rondas: 0, naoRealizadas: 0 },
+    // as disciplinas acompanhadas continuam; só a contagem zera
+    disciplinas: ant.operacao.disciplinas.map((d) => ({ ...d, id: novoId(), quantidade: 0 })),
     acessosFixos: 0,
     acessosVisitantes: 0,
     ocupacao: ant.operacao.ocupacao, // muda pouco; parte de onde parou
@@ -111,13 +140,14 @@ export const herdarDoMesAnterior = (ant: DadosRelatorio): DadosRelatorio => ({
   juridico: {
     processos: ant.juridico.processos.map((p) => ({ ...p, id: novoId(), andamento: "" })),
     inadimplencia: {
-      // encadeamento: o total consolidado vira a posição de abertura
-      posicaoAnterior:
-        ant.juridico.inadimplencia.posicaoAnterior -
-        ant.juridico.inadimplencia.recebidoNoMes +
-        ant.juridico.inadimplencia.emAtrasoNoMes,
-      recebidoNoMes: 0,
-      emAtrasoNoMes: 0,
+      // encadeamento por rubrica: o total consolidado vira a posição de abertura
+      rubricas: ant.juridico.inadimplencia.rubricas.map((r) => ({
+        id: novoId(),
+        rubrica: r.rubrica,
+        ateAnterior: r.ateAnterior - r.recebido + r.doMes,
+        recebido: 0,
+        doMes: 0,
+      })),
     },
     comentario: "",
   },
@@ -129,6 +159,9 @@ export const herdarDoMesAnterior = (ant: DadosRelatorio): DadosRelatorio => ({
       faturaAnterior: u.fatura,
       consumo: 0,
       fatura: 0,
+      ponta: 0,
+      foraPonta: 0,
+      faltas: 0,
       detalhamento: "",
       observacao: "",
     })),
@@ -179,8 +212,43 @@ export const normalizarDados = (bruto: unknown): DadosRelatorio => {
 
   const d = bruto as Partial<DadosRelatorio>;
 
+  // Migração v2 -> v3: antes receita/despesa/saldo eram campos avulsos e a
+  // inadimplência eram três números. Vira uma linha "Geral" para nada se perder.
+  const v2 = bruto as {
+    financeiro?: { receita?: unknown; despesa?: unknown; saldoConta?: unknown };
+    juridico?: { inadimplencia?: { posicaoAnterior?: unknown; recebidoNoMes?: unknown; emAtrasoNoMes?: unknown } };
+  };
+  const temFundos = Array.isArray(d.financeiro?.fundos) && d.financeiro.fundos.length > 0;
+  const fundosMigrados: DadosRelatorio["financeiro"]["fundos"] =
+    !temFundos && (num(v2.financeiro?.receita) || num(v2.financeiro?.despesa) || num(v2.financeiro?.saldoConta))
+      ? [
+          {
+            id: novoId(),
+            fundo: "Geral",
+            anterior:
+              num(v2.financeiro?.saldoConta) - num(v2.financeiro?.receita) + num(v2.financeiro?.despesa),
+            creditos: num(v2.financeiro?.receita),
+            debitos: num(v2.financeiro?.despesa),
+          },
+        ]
+      : [];
+
+  const temRubricas = Array.isArray(d.juridico?.inadimplencia?.rubricas);
+  const rubricasMigradas: DadosRelatorio["juridico"]["inadimplencia"]["rubricas"] =
+    !temRubricas && v2.juridico?.inadimplencia
+      ? [
+          {
+            id: novoId(),
+            rubrica: "Geral",
+            ateAnterior: num(v2.juridico.inadimplencia.posicaoAnterior),
+            recebido: num(v2.juridico.inadimplencia.recebidoNoMes),
+            doMes: num(v2.juridico.inadimplencia.emAtrasoNoMes),
+          },
+        ]
+      : [];
+
   return {
-    versao: 2,
+    versao: 3,
     sumario: {
       avaliacaoGeral: txt(d.sumario?.avaliacaoGeral),
       principaisResultados: lista<string>(d.sumario?.principaisResultados).filter(
@@ -189,9 +257,17 @@ export const normalizarDados = (bruto: unknown): DadosRelatorio => {
       pontosAtencao: lista<string>(d.sumario?.pontosAtencao).filter((x) => typeof x === "string"),
     },
     financeiro: {
-      receita: num(d.financeiro?.receita),
-      despesa: num(d.financeiro?.despesa),
-      saldoConta: num(d.financeiro?.saldoConta),
+      fundos: temFundos
+        ? lista<Record<string, unknown>>(d.financeiro!.fundos).map((f) => ({
+            id: txt(f?.id, novoId()),
+            fundo: txt(f?.fundo),
+            anterior: num(f?.anterior),
+            creditos: num(f?.creditos),
+            debitos: num(f?.debitos),
+          }))
+        : fundosMigrados.length > 0
+          ? fundosMigrados
+          : base.financeiro.fundos,
       grupos: d.financeiro?.grupos
         ? lista<Record<string, unknown>>(d.financeiro.grupos).map((g) => ({
             id: txt(g?.id, novoId()),
@@ -212,6 +288,20 @@ export const normalizarDados = (bruto: unknown): DadosRelatorio => {
         resultado: txt(o?.resultado),
         concluida: bool(o?.concluida, true),
       })),
+      resumo: {
+        preventivas: num(d.operacao?.resumo?.preventivas),
+        corretivas: num(d.operacao?.resumo?.corretivas),
+        acompanhamentos: num(d.operacao?.resumo?.acompanhamentos),
+        rondas: num(d.operacao?.resumo?.rondas),
+        naoRealizadas: num(d.operacao?.resumo?.naoRealizadas),
+      },
+      disciplinas: Array.isArray(d.operacao?.disciplinas)
+        ? lista<Record<string, unknown>>(d.operacao.disciplinas).map((x) => ({
+            id: txt(x?.id, novoId()),
+            disciplina: txt(x?.disciplina),
+            quantidade: num(x?.quantidade),
+          }))
+        : base.operacao.disciplinas,
       acessosFixos: num(d.operacao?.acessosFixos),
       acessosVisitantes: num(d.operacao?.acessosVisitantes),
       ocupacao: num(d.operacao?.ocupacao),
@@ -263,9 +353,17 @@ export const normalizarDados = (bruto: unknown): DadosRelatorio => {
         criticidade: umDe(p?.criticidade, CRITICIDADES, "media"),
       })),
       inadimplencia: {
-        posicaoAnterior: num(d.juridico?.inadimplencia?.posicaoAnterior),
-        recebidoNoMes: num(d.juridico?.inadimplencia?.recebidoNoMes),
-        emAtrasoNoMes: num(d.juridico?.inadimplencia?.emAtrasoNoMes),
+        rubricas: temRubricas
+          ? lista<Record<string, unknown>>(d.juridico!.inadimplencia!.rubricas).map((r) => ({
+              id: txt(r?.id, novoId()),
+              rubrica: txt(r?.rubrica),
+              ateAnterior: num(r?.ateAnterior),
+              recebido: num(r?.recebido),
+              doMes: num(r?.doMes),
+            }))
+          : rubricasMigradas.length > 0
+            ? rubricasMigradas
+            : base.juridico.inadimplencia.rubricas,
       },
       comentario: txt(d.juridico?.comentario),
     },
@@ -277,6 +375,9 @@ export const normalizarDados = (bruto: unknown): DadosRelatorio => {
             unidade: txt(u?.unidade),
             consumo: num(u?.consumo),
             consumoAnterior: num(u?.consumoAnterior),
+            ponta: num(u?.ponta),
+            foraPonta: num(u?.foraPonta),
+            faltas: num(u?.faltas),
             detalhamento: txt(u?.detalhamento),
             fatura: num(u?.fatura),
             faturaAnterior: num(u?.faturaAnterior),

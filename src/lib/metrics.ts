@@ -16,10 +16,18 @@ import type {
   DadosRelatorio,
   LinhaCapex,
   LinhaDocumento,
+  LinhaFundo,
+  LinhaRubricaInadimplencia,
   LinhaUtilidade,
   Semaforo,
 } from "./types";
-import { formatarMoeda, formatarNumero, formatarPercentual, formatarVariacao } from "./format";
+import {
+  diasNoMes,
+  formatarMoeda,
+  formatarNumero,
+  formatarPercentual,
+  formatarVariacao,
+} from "./format";
 
 /** Divisão que nunca estoura: sem denominador, o indicador é "não aplicável". */
 const razao = (numerador: number, denominador: number): number | null =>
@@ -50,16 +58,62 @@ export const variacaoFatura = (l: LinhaUtilidade) => variacao(l.fatura, l.fatura
 
 export const desvioCapex = (l: LinhaCapex) => variacao(l.realizado, l.orcado);
 
-export const resultadoFinanceiro = (d: DadosRelatorio) => d.financeiro.receita - d.financeiro.despesa;
+/* --- Financeiro: totais vêm da tabela por fundo, ninguém os digita --------- */
+
+export const saldoFundo = (l: LinhaFundo) => l.anterior + l.creditos - l.debitos;
+
+export const receitaTotal = (d: DadosRelatorio) =>
+  d.financeiro.fundos.reduce((s, f) => s + f.creditos, 0);
+
+export const despesaTotal = (d: DadosRelatorio) =>
+  d.financeiro.fundos.reduce((s, f) => s + f.debitos, 0);
+
+export const saldoAnteriorTotal = (d: DadosRelatorio) =>
+  d.financeiro.fundos.reduce((s, f) => s + f.anterior, 0);
+
+export const saldoTotal = (d: DadosRelatorio) =>
+  d.financeiro.fundos.reduce((s, f) => s + saldoFundo(f), 0);
+
+export const resultadoFinanceiro = (d: DadosRelatorio) => receitaTotal(d) - despesaTotal(d);
 
 /** "despesa 8% acima da receita" — o número que abre o sumário no template. */
-export const despesaSobreReceita = (d: DadosRelatorio) =>
-  variacao(d.financeiro.despesa, d.financeiro.receita);
+export const despesaSobreReceita = (d: DadosRelatorio) => variacao(despesaTotal(d), receitaTotal(d));
+
+/* --- Inadimplência: idem, por rubrica ------------------------------------- */
+
+export const totalRubrica = (r: LinhaRubricaInadimplencia) => r.ateAnterior - r.recebido + r.doMes;
 
 export const inadimplenciaTotal = (d: DadosRelatorio) =>
-  d.juridico.inadimplencia.posicaoAnterior -
-  d.juridico.inadimplencia.recebidoNoMes +
-  d.juridico.inadimplencia.emAtrasoNoMes;
+  d.juridico.inadimplencia.rubricas.reduce((s, r) => s + totalRubrica(r), 0);
+
+export const inadimplenciaRecebida = (d: DadosRelatorio) =>
+  d.juridico.inadimplencia.rubricas.reduce((s, r) => s + r.recebido, 0);
+
+export const inadimplenciaDoMes = (d: DadosRelatorio) =>
+  d.juridico.inadimplencia.rubricas.reduce((s, r) => s + r.doMes, 0);
+
+/* --- Manutenção: agregado do sistema de OS -------------------------------- */
+
+export const totalManutencoes = (d: DadosRelatorio) => {
+  const r = d.operacao.resumo;
+  return r.preventivas + r.corretivas + r.acompanhamentos + r.rondas;
+};
+
+/** Proporção de preventiva sobre preventiva + corretiva. */
+export const percentualPreventiva = (d: DadosRelatorio) => {
+  const { preventivas, corretivas } = d.operacao.resumo;
+  return razao(preventivas, preventivas + corretivas);
+};
+
+/** Ordens executadas sobre programadas (executadas + não realizadas). */
+export const percentualRealizado = (d: DadosRelatorio) => {
+  const executadas = totalManutencoes(d);
+  return razao(executadas, executadas + d.operacao.resumo.naoRealizadas);
+};
+
+/** Consumo médio diário — o Excel de utilidades reporta; aqui é calculado. */
+export const consumoMedioDiario = (l: LinhaUtilidade, competencia: string) =>
+  l.consumo > 0 ? l.consumo / diasNoMes(competencia) : 0;
 
 export const vacancia = (d: DadosRelatorio) => limitar(100 - d.operacao.ocupacao);
 
@@ -150,23 +204,28 @@ export const indicadores360 = (d: DadosRelatorio, hoje = new Date()): Indicador3
   }
 
   // 2. Saldo de caixa
+  const saldo = saldoTotal(d);
+  const despesa = despesaTotal(d);
   lista.push({
     id: "saldo",
     rotulo: "Saldo de caixa",
-    valor: formatarMoeda(d.financeiro.saldoConta),
+    valor: formatarMoeda(saldo),
     semaforo:
-      d.financeiro.saldoConta <= 0
-        ? "vermelho"
-        : d.financeiro.despesa > 0 && d.financeiro.saldoConta < d.financeiro.despesa * 0.5
-          ? "amarelo"
-          : "verde",
+      d.financeiro.fundos.length === 0
+        ? "amarelo"
+        : saldo <= 0
+          ? "vermelho"
+          : despesa > 0 && saldo < despesa * 0.5
+            ? "amarelo"
+            : "verde",
     criterio: "Vermelho: saldo zerado ou negativo. Amarelo: abaixo de meio mês de despesa.",
     secao: "Financeiro",
   });
 
   // 3. Inadimplência
   const inad = inadimplenciaTotal(d);
-  const inadPctReceita = d.financeiro.receita > 0 ? (inad / d.financeiro.receita) * 100 : null;
+  const receita = receitaTotal(d);
+  const inadPctReceita = receita > 0 ? (inad / receita) * 100 : null;
   lista.push({
     id: "inadimplencia",
     rotulo: "Inadimplência",
@@ -177,20 +236,36 @@ export const indicadores360 = (d: DadosRelatorio, hoje = new Date()): Indicador3
     secao: "Jurídico",
   });
 
-  // 4. Desempenho operacional
-  const concluidas = d.operacao.ocorrencias.filter((o) => o.concluida).length;
-  const totalOc = d.operacao.ocorrencias.length;
-  if (totalOc === 0) {
-    lista.push(semDado("operacao", "Desempenho operacional", "Operação"));
-  } else {
+  // 4. Desempenho operacional — usa o agregado do sistema de OS quando existe;
+  // senão cai na contagem das ocorrências descritas manualmente.
+  const executadas = totalManutencoes(d);
+  const realizado = percentualRealizado(d);
+
+  if (executadas > 0 && realizado !== null) {
     lista.push({
       id: "operacao",
       rotulo: "Desempenho operacional",
-      valor: `${concluidas} de ${totalOc} manutenções concluídas`,
-      semaforo: concluidas === totalOc ? "verde" : concluidas / totalOc >= 0.7 ? "amarelo" : "vermelho",
-      criterio: "Verde: todas concluídas. Amarelo: ao menos 70%. Vermelho: abaixo disso.",
+      valor: `${formatarNumero(executadas)} manutenções · ${realizado.toFixed(0)}% do programado`,
+      semaforo: realizado >= 95 ? "verde" : realizado >= 80 ? "amarelo" : "vermelho",
+      criterio: "Verde: 95% ou mais do programado executado. Amarelo: a partir de 80%.",
       secao: "Operação",
     });
+  } else {
+    const concluidas = d.operacao.ocorrencias.filter((o) => o.concluida).length;
+    const totalOc = d.operacao.ocorrencias.length;
+    if (totalOc === 0) {
+      lista.push(semDado("operacao", "Desempenho operacional", "Operação"));
+    } else {
+      lista.push({
+        id: "operacao",
+        rotulo: "Desempenho operacional",
+        valor: `${concluidas} de ${totalOc} manutenções concluídas`,
+        semaforo:
+          concluidas === totalOc ? "verde" : concluidas / totalOc >= 0.7 ? "amarelo" : "vermelho",
+        criterio: "Verde: todas concluídas. Amarelo: ao menos 70%. Vermelho: abaixo disso.",
+        secao: "Operação",
+      });
+    }
   }
 
   // 5. Documentos legais
@@ -366,28 +441,30 @@ export const calcularKpis = (d: DadosRelatorio): Kpi[] => {
   const resultado = resultadoFinanceiro(d);
   const dsr = despesaSobreReceita(d);
   const acessos = totalAcessos(d);
+  const receita = receitaTotal(d);
+  const saldo = saldoTotal(d);
 
   return [
     {
       id: "receita",
       label: "Receita do mês",
-      valor: formatarMoeda(d.financeiro.receita),
-      apoio: "entradas do período",
-      semaforo: d.financeiro.receita > 0 ? "verde" : "amarelo",
+      valor: formatarMoeda(receita),
+      apoio: "total de créditos no período",
+      semaforo: receita > 0 ? "verde" : "amarelo",
     },
     {
       id: "despesa",
       label: "Despesa do mês",
-      valor: formatarMoeda(d.financeiro.despesa),
+      valor: formatarMoeda(despesaTotal(d)),
       apoio: dsr === null ? "sem receita lançada" : `${formatarVariacao(dsr)} vs. receita`,
       semaforo: dsr === null ? "amarelo" : dsr <= 0 ? "verde" : dsr <= 10 ? "amarelo" : "vermelho",
     },
     {
       id: "saldo",
       label: "Saldo em conta",
-      valor: formatarMoeda(d.financeiro.saldoConta),
+      valor: formatarMoeda(saldo),
       apoio: resultado >= 0 ? "resultado positivo" : "resultado negativo no mês",
-      semaforo: d.financeiro.saldoConta > 0 ? "verde" : "vermelho",
+      semaforo: saldo > 0 ? "verde" : "vermelho",
     },
     {
       id: "inadimplencia",
@@ -541,8 +618,9 @@ const preenchido = (t: string) => t.trim().length >= 15;
 
 export const progressoSecoes = (d: DadosRelatorio): Record<string, boolean> => ({
   sumario: preenchido(d.sumario.avaliacaoGeral),
-  financeiro: d.financeiro.receita > 0 || d.financeiro.despesa > 0,
-  operacao: d.operacao.ocorrencias.length > 0 || d.operacao.ocupacao > 0,
+  financeiro: d.financeiro.fundos.some((f) => f.creditos > 0 || f.debitos > 0 || f.anterior > 0),
+  operacao:
+    d.operacao.ocorrencias.length > 0 || d.operacao.ocupacao > 0 || totalManutencoes(d) > 0,
   fornecedores: d.fornecedores.linhas.length > 0,
   contratos: d.contratos.linhas.length > 0,
   documentos: d.documentos.linhas.some((l) => Boolean(l.validade)),

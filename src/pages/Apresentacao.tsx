@@ -29,12 +29,20 @@ import {
   contarDocumentos,
   calcularIndiceExecutivo,
   despesaSobreReceita,
+  despesaTotal,
   indicadores360,
+  inadimplenciaDoMes,
+  inadimplenciaRecebida,
   inadimplenciaTotal,
+  percentualPreventiva,
+  percentualRealizado,
+  receitaTotal,
+  saldoTotal,
   semaforoDaNota,
   semaforoGeral,
   situacaoDocumento,
   totalAcessos,
+  totalManutencoes,
   vacancia,
   variacao,
   variacaoConsumo,
@@ -301,8 +309,8 @@ const montarSlides = (relatorio: Relatorio, historico: Relatorio[]): ReactNode[]
 
   const serie = historico.map((r) => ({
     mes: formatarCompetenciaCurta(r.competencia),
-    receita: r.dados.financeiro.receita,
-    despesa: r.dados.financeiro.despesa,
+    receita: receitaTotal(r.dados),
+    despesa: despesaTotal(r.dados),
     indice: r.indice_executivo ?? 0,
   }));
 
@@ -428,14 +436,14 @@ const montarSlides = (relatorio: Relatorio, historico: Relatorio[]): ReactNode[]
     <Slide key="financeiro" titulo="Financeiro" subtitulo="Resultado e posição de caixa do período">
       <div className="flex h-full flex-col gap-[2.5vh]">
         <div className="grid shrink-0 grid-cols-2 gap-[1.5vw] lg:grid-cols-4">
-          <Numerao rotulo="Receita" valor={formatarMoeda(d.financeiro.receita)} />
+          <Numerao rotulo="Receita" valor={formatarMoeda(receitaTotal(d))} />
           <Numerao
             rotulo="Despesa"
-            valor={formatarMoeda(d.financeiro.despesa)}
+            valor={formatarMoeda(despesaTotal(d))}
             apoio={dsr === null ? undefined : `${formatarVariacao(dsr)} vs. receita`}
             cor={dsr !== null && dsr > 10 ? COR.vermelho : undefined}
           />
-          <Numerao rotulo="Saldo em conta" valor={formatarMoeda(d.financeiro.saldoConta)} cor={COR.verde} />
+          <Numerao rotulo="Saldo em conta" valor={formatarMoeda(saldoTotal(d))} cor={COR.verde} />
           <Numerao rotulo="Inadimplência" valor={formatarMoeda(inadimplenciaTotal(d))} cor={COR.amarelo} />
         </div>
 
@@ -511,8 +519,17 @@ const montarSlides = (relatorio: Relatorio, historico: Relatorio[]): ReactNode[]
             apoio={`${formatarNumero(d.operacao.acessosFixos)} fixos + ${formatarNumero(d.operacao.acessosVisitantes)} visitantes`}
           />
           <Numerao
-            rotulo="Manutenções concluídas"
-            valor={`${d.operacao.ocorrencias.filter((o) => o.concluida).length} de ${d.operacao.ocorrencias.length}`}
+            rotulo="Manutenções"
+            valor={
+              totalManutencoes(d) > 0
+                ? formatarNumero(totalManutencoes(d))
+                : `${d.operacao.ocorrencias.filter((o) => o.concluida).length} de ${d.operacao.ocorrencias.length}`
+            }
+            apoio={
+              percentualRealizado(d) !== null
+                ? `${percentualRealizado(d)!.toFixed(0)}% do programado`
+                : "executadas no mês"
+            }
             cor={COR.verde}
           />
         </div>
@@ -534,6 +551,55 @@ const montarSlides = (relatorio: Relatorio, historico: Relatorio[]): ReactNode[]
       </div>
     </Slide>,
   );
+
+  /* ------------------------------- 7b. dashboard de manutenção (agregado) */
+  if (totalManutencoes(d) > 0) {
+    const porDisciplina = d.operacao.disciplinas
+      .filter((x) => x.quantidade > 0)
+      .sort((a, b) => b.quantidade - a.quantidade)
+      .map((x) => ({ nome: x.disciplina, Finalizadas: x.quantidade }));
+
+    slides.push(
+      <Slide key="manutencao" titulo="Manutenção" subtitulo="Volume executado no período">
+        <div className="grid h-full gap-[2vw] lg:grid-cols-[0.9fr_1.1fr]">
+          <div className="grid grid-cols-2 content-start gap-[1.5vw]">
+            <Numerao rotulo="Preventivas" valor={formatarNumero(d.operacao.resumo.preventivas)} cor={COR.verde} />
+            <Numerao rotulo="Corretivas" valor={formatarNumero(d.operacao.resumo.corretivas)} cor={COR.amarelo} />
+            <Numerao rotulo="Acompanhamentos" valor={formatarNumero(d.operacao.resumo.acompanhamentos)} />
+            <Numerao rotulo="Rondas" valor={formatarNumero(d.operacao.resumo.rondas)} />
+            <div className="col-span-2">
+              <Numerao
+                rotulo="Proporção de preventiva"
+                valor={percentualPreventiva(d) === null ? "—" : `${percentualPreventiva(d)!.toFixed(1)}%`}
+                apoio={
+                  d.operacao.resumo.naoRealizadas > 0
+                    ? `${d.operacao.resumo.naoRealizadas} ordens em aberto`
+                    : "nenhuma ordem em aberto"
+                }
+                cor={COR.verde}
+              />
+            </div>
+          </div>
+
+          <div className="min-h-0 rounded-2xl border border-border bg-card p-[2vh]">
+            {porDisciplina.length ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={porDisciplina} layout="vertical" margin={{ top: 8, right: 24, bottom: 8, left: 8 }}>
+                  <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" horizontal={false} />
+                  <XAxis type="number" tick={{ fontSize: 11 }} />
+                  <YAxis type="category" dataKey="nome" tick={{ fontSize: 11 }} width={110} />
+                  <Tooltip contentStyle={{ borderRadius: 8, borderColor: "hsl(var(--border))", fontSize: 12 }} />
+                  <Bar dataKey="Finalizadas" fill="hsl(var(--secondary))" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <SemDados>Nenhuma disciplina com ordens finalizadas no período.</SemDados>
+            )}
+          </div>
+        </div>
+      </Slide>,
+    );
+  }
 
   /* ---------------------------------------- 8. conformidade (docs + contratos) */
   slides.push(
@@ -656,9 +722,12 @@ const montarSlides = (relatorio: Relatorio, historico: Relatorio[]): ReactNode[]
       <Slide key="juridico" titulo="Jurídico e inadimplência">
         <div className="flex h-full flex-col gap-[2.5vh]">
           <div className="grid shrink-0 grid-cols-4 gap-[1.5vw]">
-            <Numerao rotulo="Posição anterior" valor={formatarMoeda(d.juridico.inadimplencia.posicaoAnterior)} />
-            <Numerao rotulo="Recebido no mês" valor={formatarMoeda(d.juridico.inadimplencia.recebidoNoMes)} cor={COR.verde} />
-            <Numerao rotulo="Novo atraso" valor={formatarMoeda(d.juridico.inadimplencia.emAtrasoNoMes)} cor={COR.amarelo} />
+            <Numerao
+              rotulo="Posição anterior"
+              valor={formatarMoeda(d.juridico.inadimplencia.rubricas.reduce((s, r) => s + r.ateAnterior, 0))}
+            />
+            <Numerao rotulo="Recebido no mês" valor={formatarMoeda(inadimplenciaRecebida(d))} cor={COR.verde} />
+            <Numerao rotulo="Novo atraso" valor={formatarMoeda(inadimplenciaDoMes(d))} cor={COR.amarelo} />
             <Numerao rotulo="Total consolidado" valor={formatarMoeda(inadimplenciaTotal(d))} cor={COR.vermelho} />
           </div>
           <div className="min-h-0 flex-1">

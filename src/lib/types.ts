@@ -49,6 +49,34 @@ export interface Relatorio {
 /* Linhas das tabelas                                                          */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * Resumo financeiro contábil por fundo — a tabela que hoje é print do sistema
+ * contábil: "Fundo | Anterior | Créditos | Débitos | Saldo".
+ *
+ * Receita, despesa e saldo do mês são os TOTAIS destas linhas, calculados em
+ * `metrics.ts`. Uma versão anterior pedia os três totais como campos avulsos,
+ * o que permitia o resumo contradizer o detalhe.
+ */
+export interface LinhaFundo {
+  id: string;
+  fundo: string;
+  anterior: number;
+  creditos: number;
+  debitos: number;
+  // saldo é DERIVADO: anterior + creditos - debitos
+}
+
+/** Posição de inadimplência por rubrica — também print do sistema contábil. */
+export interface LinhaRubricaInadimplencia {
+  id: string;
+  rubrica: string;
+  /** Posição acumulada até o fechamento do mês anterior. */
+  ateAnterior: number;
+  recebido: number;
+  doMes: number;
+  // total é DERIVADO: ateAnterior - recebido + doMes
+}
+
 /** Slide FINANCEIRO — "Grupo contábil | Orçado | Realizado | Status" */
 export interface LinhaGrupoContabil {
   id: string;
@@ -119,12 +147,27 @@ export interface LinhaUtilidade {
   unidade: string; // m³, kWh
   consumo: number;
   consumoAnterior: number;
-  /** "136 m³/dia" ou "768 kWh ponta / 831 fora ponta" */
+  /** Energia: consumo na ponta e fora de ponta. Água deixa em zero. */
+  ponta: number;
+  foraPonta: number;
+  /** Interrupções de fornecimento no mês. */
+  faltas: number;
   detalhamento: string;
   fatura: number;
   faturaAnterior: number;
   observacao: string;
-  // variação de consumo e de custo são DERIVADAS
+  // variação de consumo/custo e consumo médio diário são DERIVADOS
+}
+
+/**
+ * Contagem de manutenções por disciplina — hoje é print do dashboard do
+ * sistema de OS. Preenchido em formulário; quando a API do sistema estiver
+ * disponível, ela popula estes mesmos campos sem mudar a estrutura.
+ */
+export interface LinhaDisciplina {
+  id: string;
+  disciplina: string;
+  quantidade: number;
 }
 
 /** Slide CAPEX E MELHORIAS */
@@ -170,7 +213,7 @@ export interface Foto {
 /* -------------------------------------------------------------------------- */
 
 export interface DadosRelatorio {
-  versao: 2;
+  versao: 3;
 
   /** Slide 2 — o texto é do gestor; a tabela de semáforos é derivada. */
   sumario: {
@@ -180,15 +223,24 @@ export interface DadosRelatorio {
   };
 
   financeiro: {
-    receita: number;
-    despesa: number;
-    saldoConta: number;
+    /** Receita, despesa e saldo do mês saem daqui — não são digitados. */
+    fundos: LinhaFundo[];
     grupos: LinhaGrupoContabil[];
     comentario: string;
   };
 
   operacao: {
     ocorrencias: LinhaOcorrencia[];
+    /** Agregado do sistema de OS (o "dashboard" do relatório atual). */
+    resumo: {
+      preventivas: number;
+      corretivas: number;
+      acompanhamentos: number;
+      rondas: number;
+      /** Ordens programadas que não foram executadas no período. */
+      naoRealizadas: number;
+    };
+    disciplinas: LinhaDisciplina[];
     acessosFixos: number;
     acessosVisitantes: number;
     ocupacao: number; // %  (vacância é derivada)
@@ -201,12 +253,8 @@ export interface DadosRelatorio {
 
   juridico: {
     processos: LinhaProcesso[];
-    inadimplencia: {
-      posicaoAnterior: number;
-      recebidoNoMes: number;
-      emAtrasoNoMes: number;
-      // total consolidado é DERIVADO
-    };
+    /** Total consolidado é DERIVADO da soma das rubricas. */
+    inadimplencia: { rubricas: LinhaRubricaInadimplencia[] };
     comentario: string;
   };
 

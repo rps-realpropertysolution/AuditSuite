@@ -16,12 +16,30 @@ A resposta aqui não é "um editor de slides mais rápido". É **eliminar a redi
 
 | Antes | Agora |
 | --- | --- |
-| Todo mês remontava a planilha do zero | O mês novo herda a estrutura do anterior (contratos, documentos, fornecedores, grupos contábeis) |
+| Todo mês remontava a planilha do zero | O mês novo herda a estrutura do anterior (contratos, documentos, fornecedores, fundos, disciplinas) |
 | Digitava "Vigente" ao lado do documento | Informa a **data de validade**; vigente/a vencer/vencido é calculado |
 | Digitava a variação de consumo | Informa o consumo; a variação e a base de comparação vêm do mês anterior |
 | Montava a tabela de semáforos do sumário à mão | O **Sumário 360°** se monta a partir das outras seções — nunca fica inconsistente |
-| Somava saldo e inadimplência na calculadora | Saldo e posição consolidada são derivados e encadeados entre meses |
+| Somava saldo e inadimplência na calculadora | Derivados da tabela por fundo/rubrica e encadeados entre meses |
 | Apresentava um PPTX estático | Modo apresentação em tela cheia + PDF, a partir do mesmo dado |
+
+### De onde vinham os dados
+
+O relatório em uso hoje (`public/templates`, fora do versionamento) tem 36 slides e é montado
+com **prints de sete origens diferentes** — sistema contábil, Excel de orçamento, Excel de
+utilidades, dashboard do sistema de OS, PDFs de certidões, PJe e fotos de campo. O tempo do
+gestor não vai em escrever: vai em navegar esses sistemas e recortar tela.
+
+O modelo de dados foi desenhado a partir desses prints, mantendo a mesma abertura que o síndico
+já conhece — e de forma **independente da origem**: hoje o gestor digita, amanhã uma API popula
+os mesmos campos sem alterar a estrutura.
+
+| Bloco | Estrutura | Derivado |
+| --- | --- | --- |
+| Resumo financeiro | por fundo: anterior · créditos · débitos | saldo, receita, despesa, resultado |
+| Inadimplência | por rubrica: até o mês anterior · recebido · do mês | total por rubrica e consolidado |
+| Manutenção | preventivas · corretivas · acompanhamentos · rondas · não realizadas | total, % preventiva, % do programado |
+| Utilidades | consumo · ponta · fora ponta · fatura · faltas | variação, consumo médio diário |
 
 ## 2. Estrutura do relatório
 
@@ -159,11 +177,16 @@ Storage (com URL assinada, entrando no PDF), modo apresentação, exportação e
 
 **Próximos passos sugeridos:**
 
-1. Link público com token para o proprietário abrir sem criar conta.
-2. Importar a fatura da concessionária / extrato para preencher utilidades e financeiro.
-3. Notificação automática quando documento entra na janela de 60 dias.
-4. Comparativo entre empreendimentos para a diretoria.
-5. Code splitting — o bundle passou de 500 kB e hoje é um chunk único.
+1. **Integrar as origens** — o modelo já está pronto para receber: sistema contábil alimenta
+   fundos e inadimplência, sistema de OS alimenta o agregado de manutenção. Enquanto não há API,
+   os mesmos campos são preenchidos em formulário.
+2. Anexar o arquivo da certidão ao documento (hoje o relatório antigo colava o print do PDF).
+3. Fotos vinculadas a cada ocorrência de manutenção, não só na galeria de evidências.
+4. Cadastro das características técnicas do ativo (elevadores, gerador, splits) — hoje é texto
+   repetido manualmente todo mês.
+5. Link público com token para o proprietário abrir sem criar conta.
+6. Notificação automática quando documento entra na janela de 60 dias.
+7. Code splitting — o bundle passou de 500 kB e hoje é um chunk único.
 
 ---
 

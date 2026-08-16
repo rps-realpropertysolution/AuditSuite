@@ -370,7 +370,7 @@ const EditorRelatorio = () => {
               <SecaoContratos {...props} />
               <SecaoDocumentos {...props} />
               <SecaoJuridico {...props} />
-              <SecaoUtilidades {...props} />
+              <SecaoUtilidades {...props} competencia={relatorio.competencia} />
               <SecaoCapex {...props} />
               <SecaoRiscos {...props} />
               <SecaoProximosPassos {...props} />

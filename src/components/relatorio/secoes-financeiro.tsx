@@ -14,11 +14,22 @@ import { formatarMoeda, formatarVariacao } from "@/lib/format";
 import {
   desvioCapex,
   despesaSobreReceita,
+  despesaTotal,
   indicadores360,
+  receitaTotal,
   resultadoFinanceiro,
+  saldoAnteriorTotal,
+  saldoFundo,
+  saldoTotal,
   variacao,
 } from "@/lib/metrics";
-import type { DadosRelatorio, LinhaCapex, LinhaGrupoContabil, Semaforo } from "@/lib/types";
+import type {
+  DadosRelatorio,
+  LinhaCapex,
+  LinhaFundo,
+  LinhaGrupoContabil,
+  Semaforo,
+} from "@/lib/types";
 
 export interface PropsSecao {
   dados: DadosRelatorio;
@@ -129,8 +140,69 @@ export const SecaoFinanceiro = ({ dados, atualizar, somenteLeitura }: PropsSecao
 
   const resultado = resultadoFinanceiro(dados);
   const dsr = despesaSobreReceita(dados);
+  const receita = receitaTotal(dados);
+  const despesa = despesaTotal(dados);
+  const saldo = saldoTotal(dados);
   const totalOrcado = fin.grupos.reduce((s, g) => s + g.orcado, 0);
   const totalRealizado = fin.grupos.reduce((s, g) => s + g.realizado, 0);
+
+  const colunasFundo: Coluna<LinhaFundo>[] = [
+    {
+      chave: "fundo",
+      titulo: "Fundo",
+      largura: "min-w-[200px]",
+      render: (l, up) => (
+        <CampoTexto
+          valor={l.fundo}
+          desabilitado={somenteLeitura}
+          onChange={(v) => up({ fundo: v })}
+          placeholder="Ex.: Fundo de reserva"
+        />
+      ),
+    },
+    {
+      chave: "anterior",
+      titulo: "Anterior",
+      largura: "w-40",
+      alinhar: "direita",
+      render: (l, up) => (
+        <CampoMoeda valor={l.anterior} desabilitado={somenteLeitura} onChange={(v) => up({ anterior: v })} />
+      ),
+    },
+    {
+      chave: "creditos",
+      titulo: "Créditos",
+      largura: "w-40",
+      alinhar: "direita",
+      render: (l, up) => (
+        <CampoMoeda valor={l.creditos} desabilitado={somenteLeitura} onChange={(v) => up({ creditos: v })} />
+      ),
+    },
+    {
+      chave: "debitos",
+      titulo: "Débitos",
+      largura: "w-40",
+      alinhar: "direita",
+      render: (l, up) => (
+        <CampoMoeda valor={l.debitos} desabilitado={somenteLeitura} onChange={(v) => up({ debitos: v })} />
+      ),
+    },
+    {
+      chave: "saldo",
+      titulo: "Saldo",
+      largura: "w-40",
+      alinhar: "direita",
+      render: (l) => (
+        <span
+          className={`block px-3 py-2 text-sm font-bold tabular-nums ${
+            saldoFundo(l) < 0 ? "text-semaforo-vermelho" : "text-foreground"
+          }`}
+        >
+          {formatarMoeda(saldoFundo(l))}
+        </span>
+      ),
+    },
+  ];
 
   const colunas: Coluna<LinhaGrupoContabil>[] = [
     {
@@ -215,31 +287,59 @@ export const SecaoFinanceiro = ({ dados, atualizar, somenteLeitura }: PropsSecao
       icone={<Banknote className="h-5 w-5" />}
       descricao="Resultado do mês e comparativo entre orçado e realizado por grupo contábil."
     >
+      <div>
+        <h3 className="mb-1 text-sm font-bold">Resumo financeiro contábil</h3>
+        <p className="mb-3 text-xs text-muted-foreground">
+          Lance por fundo, como vem do sistema contábil. Receita, despesa e saldo do mês são a soma
+          destas linhas — não precisam ser digitados e nunca divergem do detalhe.
+        </p>
+        <TabelaEditavel
+          linhas={fin.fundos}
+          colunas={colunasFundo}
+          somenteLeitura={somenteLeitura}
+          onChange={(fundos) => set({ fundos })}
+          novaLinha={() => ({ id: novoId(), fundo: "", anterior: 0, creditos: 0, debitos: 0 })}
+          rotuloAdicionar="Adicionar fundo"
+          vazio={{
+            titulo: "Nenhum fundo lançado",
+            descricao:
+              "Cadastre Ordinária, Fundo de Reserva e demais rubricas. Nos meses seguintes o saldo de fechamento já abre o mês sozinho.",
+          }}
+          rodape={
+            <tr className="font-bold">
+              <td className="px-3 py-2.5">Total</td>
+              <td className="px-3 py-2.5 text-right tabular-nums">{formatarMoeda(saldoAnteriorTotal(dados))}</td>
+              <td className="px-3 py-2.5 text-right tabular-nums">{formatarMoeda(receita)}</td>
+              <td className="px-3 py-2.5 text-right tabular-nums">{formatarMoeda(despesa)}</td>
+              <td className="px-3 py-2.5 text-right tabular-nums">{formatarMoeda(saldo)}</td>
+              {!somenteLeitura ? <td /> : null}
+            </tr>
+          }
+        />
+      </div>
+
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Campo label="Receita do mês">
-          <CampoMoeda valor={fin.receita} desabilitado={somenteLeitura} onChange={(v) => set({ receita: v })} />
-        </Campo>
-        <Campo label="Despesa do mês">
-          <CampoMoeda valor={fin.despesa} desabilitado={somenteLeitura} onChange={(v) => set({ despesa: v })} />
-        </Campo>
-        <Campo label="Saldo em conta">
-          <CampoMoeda valor={fin.saldoConta} desabilitado={somenteLeitura} onChange={(v) => set({ saldoConta: v })} />
-        </Campo>
-        <div className="rounded-lg border border-border bg-surface-soft p-3">
-          <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Resultado do mês
-          </span>
-          <strong
-            className={`mt-1 block text-xl tabular-nums ${
-              resultado >= 0 ? "text-semaforo-verde" : "text-semaforo-vermelho"
-            }`}
-          >
-            {formatarMoeda(resultado)}
-          </strong>
-          <span className="text-xs text-muted-foreground">
-            {dsr === null ? "sem receita lançada" : `despesa ${formatarVariacao(dsr)} vs. receita`}
-          </span>
-        </div>
+        {[
+          { r: "Receita do mês", v: formatarMoeda(receita), s: "total de créditos" },
+          { r: "Despesa do mês", v: formatarMoeda(despesa), s: dsr === null ? "—" : `${formatarVariacao(dsr)} vs. receita` },
+          { r: "Saldo em conta", v: formatarMoeda(saldo), s: "fecha o mês" },
+          {
+            r: "Resultado do mês",
+            v: formatarMoeda(resultado),
+            s: resultado >= 0 ? "positivo" : "negativo",
+            cor: resultado >= 0 ? "text-semaforo-verde" : "text-semaforo-vermelho",
+          },
+        ].map((k) => (
+          <div key={k.r} className="rounded-lg border border-border bg-surface-soft p-3">
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              {k.r}
+            </span>
+            <strong className={`mt-1 block text-xl tabular-nums ${k.cor ?? "text-foreground"}`}>
+              {k.v}
+            </strong>
+            <span className="text-xs text-muted-foreground">{k.s}</span>
+          </div>
+        ))}
       </div>
 
       <TabelaEditavel

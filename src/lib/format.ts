@@ -106,6 +106,13 @@ export const competenciaAtual = () => {
   return competenciaDe(hoje.getFullYear(), hoje.getMonth() + 1);
 };
 
+/** Dias do mês da competência — usado no consumo médio diário de utilidades. */
+export const diasNoMes = (iso: string) => {
+  const [ano, mes] = iso.split("-").map(Number);
+  if (!ano || !mes) return 30;
+  return new Date(Date.UTC(ano, mes, 0)).getUTCDate();
+};
+
 export const competenciaAnterior = (iso: string) => {
   const [ano, mes] = iso.split("-").map(Number);
   return mes === 1 ? competenciaDe(ano - 1, 12) : competenciaDe(ano, mes - 1);

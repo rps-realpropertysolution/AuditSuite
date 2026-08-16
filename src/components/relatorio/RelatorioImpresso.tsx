@@ -14,11 +14,22 @@ import {
   contarDocumentos,
   desvioCapex,
   despesaSobreReceita,
+  despesaTotal,
   indicadores360,
+  inadimplenciaDoMes,
+  inadimplenciaRecebida,
   inadimplenciaTotal,
+  percentualPreventiva,
+  percentualRealizado,
+  receitaTotal,
   resultadoFinanceiro,
+  saldoAnteriorTotal,
+  saldoFundo,
+  saldoTotal,
   situacaoDocumento,
   totalAcessos,
+  totalManutencoes,
+  totalRubrica,
   vacancia,
   variacao,
   variacaoConsumo,
@@ -208,9 +219,9 @@ export const RelatorioImpresso = ({ relatorio }: { relatorio: Relatorio }) => {
 
         <div className="grid grid-cols-4 gap-2">
           {[
-            { r: "Receita do mês", v: formatarMoeda(d.financeiro.receita) },
-            { r: "Despesa do mês", v: formatarMoeda(d.financeiro.despesa) },
-            { r: "Saldo em conta", v: formatarMoeda(d.financeiro.saldoConta) },
+            { r: "Receita do mês", v: formatarMoeda(receitaTotal(d)) },
+            { r: "Despesa do mês", v: formatarMoeda(despesaTotal(d)) },
+            { r: "Saldo em conta", v: formatarMoeda(saldoTotal(d)) },
             { r: "Inadimplência total", v: formatarMoeda(inadimplenciaTotal(d)) },
           ].map((k) => (
             <div key={k.r} className="rounded border border-border bg-surface-soft p-2.5">
@@ -226,6 +237,30 @@ export const RelatorioImpresso = ({ relatorio }: { relatorio: Relatorio }) => {
           Resultado do mês: <strong>{formatarMoeda(resultadoFinanceiro(d))}</strong>
           {dsr !== null ? ` · despesa ${formatarVariacao(dsr)} em relação à receita` : ""}
         </p>
+
+        <SubTitulo>Resumo financeiro contábil por fundo</SubTitulo>
+        {d.financeiro.fundos.length ? (
+          <Tabela cabecalho={["Fundo", "Anterior", "Créditos", "Débitos", "Saldo"]}>
+            {d.financeiro.fundos.map((f) => (
+              <tr key={f.id}>
+                <Td className="font-semibold">{f.fundo || "—"}</Td>
+                <Td className="text-right tabular-nums">{formatarMoeda(f.anterior)}</Td>
+                <Td className="text-right tabular-nums">{formatarMoeda(f.creditos)}</Td>
+                <Td className="text-right tabular-nums">{formatarMoeda(f.debitos)}</Td>
+                <Td className="text-right font-bold tabular-nums">{formatarMoeda(saldoFundo(f))}</Td>
+              </tr>
+            ))}
+            <tr className="font-bold">
+              <Td>Total</Td>
+              <Td className="text-right tabular-nums">{formatarMoeda(saldoAnteriorTotal(d))}</Td>
+              <Td className="text-right tabular-nums">{formatarMoeda(receitaTotal(d))}</Td>
+              <Td className="text-right tabular-nums">{formatarMoeda(despesaTotal(d))}</Td>
+              <Td className="text-right tabular-nums">{formatarMoeda(saldoTotal(d))}</Td>
+            </tr>
+          </Tabela>
+        ) : (
+          <Vazio>Resumo financeiro não lançado nesta competência.</Vazio>
+        )}
 
         <SubTitulo>Orçado x realizado por grupo contábil</SubTitulo>
         {d.financeiro.grupos.length ? (
@@ -275,6 +310,50 @@ export const RelatorioImpresso = ({ relatorio }: { relatorio: Relatorio }) => {
             </div>
           ))}
         </div>
+
+        {totalManutencoes(d) > 0 ? (
+          <>
+            <SubTitulo>Volume de manutenções</SubTitulo>
+            <div className="grid grid-cols-5 gap-2">
+              {[
+                ["Preventivas", d.operacao.resumo.preventivas],
+                ["Corretivas", d.operacao.resumo.corretivas],
+                ["Acompanhamentos", d.operacao.resumo.acompanhamentos],
+                ["Rondas", d.operacao.resumo.rondas],
+                ["Não realizadas", d.operacao.resumo.naoRealizadas],
+              ].map(([r, v]) => (
+                <div key={String(r)} className="rounded border border-border bg-surface-soft p-2 text-center">
+                  <strong className="block text-base tabular-nums text-primary">{String(v)}</strong>
+                  <span className="text-[9px] font-bold uppercase text-muted-foreground">{r}</span>
+                </div>
+              ))}
+            </div>
+            <p className="mt-1.5 text-[10px] text-muted-foreground">
+              {percentualPreventiva(d) !== null
+                ? `${percentualPreventiva(d)!.toFixed(1)}% de manutenção preventiva · `
+                : ""}
+              {percentualRealizado(d) !== null
+                ? `${percentualRealizado(d)!.toFixed(1)}% do programado executado`
+                : ""}
+            </p>
+
+            {d.operacao.disciplinas.some((x) => x.quantidade > 0) ? (
+              <>
+                <SubTitulo>Ordens finalizadas por disciplina</SubTitulo>
+                <Tabela cabecalho={["Disciplina", "Finalizadas"]}>
+                  {d.operacao.disciplinas
+                    .filter((x) => x.quantidade > 0)
+                    .map((x) => (
+                      <tr key={x.id}>
+                        <Td className="font-semibold">{x.disciplina || "—"}</Td>
+                        <Td className="text-right tabular-nums">{formatarNumero(x.quantidade)}</Td>
+                      </tr>
+                    ))}
+                </Tabela>
+              </>
+            ) : null}
+          </>
+        ) : null}
 
         <SubTitulo>Ocorrências do período</SubTitulo>
         {d.operacao.ocorrencias.length ? (
@@ -397,24 +476,30 @@ export const RelatorioImpresso = ({ relatorio }: { relatorio: Relatorio }) => {
         <Titulo>
           <span className="mt-6 block">Jurídico e inadimplência</span>
         </Titulo>
-        <Tabela cabecalho={["Posição de inadimplência", "Valor"]}>
-          <tr>
-            <Td>Posição do mês anterior</Td>
-            <Td className="text-right tabular-nums">{formatarMoeda(d.juridico.inadimplencia.posicaoAnterior)}</Td>
-          </tr>
-          <tr>
-            <Td>Recebido no mês</Td>
-            <Td className="text-right tabular-nums">{formatarMoeda(d.juridico.inadimplencia.recebidoNoMes)}</Td>
-          </tr>
-          <tr>
-            <Td>Novo atraso no mês</Td>
-            <Td className="text-right tabular-nums">{formatarMoeda(d.juridico.inadimplencia.emAtrasoNoMes)}</Td>
-          </tr>
-          <tr className="font-bold">
-            <Td>Total consolidado</Td>
-            <Td className="text-right tabular-nums">{formatarMoeda(inadimplenciaTotal(d))}</Td>
-          </tr>
-        </Tabela>
+        {d.juridico.inadimplencia.rubricas.length ? (
+          <Tabela cabecalho={["Posição de inadimplência", "Até o mês anterior", "Recebido", "Do mês", "Total"]}>
+            {d.juridico.inadimplencia.rubricas.map((r) => (
+              <tr key={r.id}>
+                <Td className="font-semibold">{r.rubrica || "—"}</Td>
+                <Td className="text-right tabular-nums">{formatarMoeda(r.ateAnterior)}</Td>
+                <Td className="text-right tabular-nums">{formatarMoeda(r.recebido)}</Td>
+                <Td className="text-right tabular-nums">{formatarMoeda(r.doMes)}</Td>
+                <Td className="text-right font-bold tabular-nums">{formatarMoeda(totalRubrica(r))}</Td>
+              </tr>
+            ))}
+            <tr className="font-bold">
+              <Td>Totais</Td>
+              <Td className="text-right tabular-nums">
+                {formatarMoeda(d.juridico.inadimplencia.rubricas.reduce((s, r) => s + r.ateAnterior, 0))}
+              </Td>
+              <Td className="text-right tabular-nums">{formatarMoeda(inadimplenciaRecebida(d))}</Td>
+              <Td className="text-right tabular-nums">{formatarMoeda(inadimplenciaDoMes(d))}</Td>
+              <Td className="text-right tabular-nums">{formatarMoeda(inadimplenciaTotal(d))}</Td>
+            </tr>
+          </Tabela>
+        ) : (
+          <Vazio>Posição de inadimplência não lançada nesta competência.</Vazio>
+        )}
 
         <SubTitulo>Processos em andamento</SubTitulo>
         {d.juridico.processos.length ? (

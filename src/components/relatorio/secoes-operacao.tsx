@@ -13,10 +13,20 @@ import { ComentarioGestor, Secao, TabelaEditavel, type Coluna } from "./blocos";
 import { useUploadFotos, useUrlsAssinadas } from "@/hooks/useFotos";
 import { novoId } from "@/lib/defaults";
 import { formatarNumero, formatarVariacao } from "@/lib/format";
-import { totalAcessos, vacancia, variacaoConsumo, variacaoFatura } from "@/lib/metrics";
+import {
+  consumoMedioDiario,
+  percentualPreventiva,
+  percentualRealizado,
+  totalAcessos,
+  totalManutencoes,
+  vacancia,
+  variacaoConsumo,
+  variacaoFatura,
+} from "@/lib/metrics";
 import type {
   DadosRelatorio,
   Foto,
+  LinhaDisciplina,
   LinhaFornecedor,
   LinhaOcorrencia,
   LinhaUtilidade,
@@ -43,6 +53,31 @@ const TIPOS_OCORRENCIA = [
 export const SecaoOperacao = ({ dados, atualizar, somenteLeitura }: PropsSecao) => {
   const op = dados.operacao;
   const set = (patch: Partial<DadosRelatorio["operacao"]>) => atualizar("operacao", { ...op, ...patch });
+
+  const colunasDisciplina: Coluna<LinhaDisciplina>[] = [
+    {
+      chave: "disciplina",
+      titulo: "Disciplina",
+      largura: "min-w-[220px]",
+      render: (l, up) => (
+        <CampoTexto
+          valor={l.disciplina}
+          desabilitado={somenteLeitura}
+          onChange={(v) => up({ disciplina: v })}
+          placeholder="Ex.: Elétrica"
+        />
+      ),
+    },
+    {
+      chave: "quantidade",
+      titulo: "Finalizadas",
+      largura: "w-40",
+      alinhar: "direita",
+      render: (l, up) => (
+        <CampoNumero valor={l.quantidade} desabilitado={somenteLeitura} onChange={(v) => up({ quantidade: v })} />
+      ),
+    },
+  ];
 
   const colunas: Coluna<LinhaOcorrencia>[] = [
     {
@@ -160,6 +195,74 @@ export const SecaoOperacao = ({ dados, atualizar, somenteLeitura }: PropsSecao) 
         </div>
       </div>
 
+      <div>
+        <h3 className="mb-1 text-sm font-bold">Volume de manutenções no mês</h3>
+        <p className="mb-3 text-xs text-muted-foreground">
+          O agregado que hoje sai do sistema de OS. Preencha os números do período — os percentuais
+          de preventiva e de execução são calculados.
+        </p>
+        <div className="grid gap-4 sm:grid-cols-3 xl:grid-cols-5">
+          {(
+            [
+              ["preventivas", "Preventivas"],
+              ["corretivas", "Corretivas"],
+              ["acompanhamentos", "Acompanhamentos"],
+              ["rondas", "Rondas"],
+              ["naoRealizadas", "Não realizadas"],
+            ] as const
+          ).map(([chave, rotulo]) => (
+            <Campo key={chave} label={rotulo}>
+              <CampoNumero
+                valor={op.resumo[chave]}
+                desabilitado={somenteLeitura}
+                onChange={(v) => set({ resumo: { ...op.resumo, [chave]: v } })}
+              />
+            </Campo>
+          ))}
+        </div>
+
+        <div className="mt-4 grid gap-4 sm:grid-cols-3">
+          {[
+            { r: "Total executado", v: formatarNumero(totalManutencoes(dados)), s: "no período" },
+            {
+              r: "Preventiva",
+              v: percentualPreventiva(dados) === null ? "—" : `${percentualPreventiva(dados)!.toFixed(1)}%`,
+              s: "sobre preventiva + corretiva",
+            },
+            {
+              r: "Executado do programado",
+              v: percentualRealizado(dados) === null ? "—" : `${percentualRealizado(dados)!.toFixed(1)}%`,
+              s: op.resumo.naoRealizadas > 0 ? `${op.resumo.naoRealizadas} em aberto` : "sem pendência",
+            },
+          ].map((k) => (
+            <div key={k.r} className="rounded-lg border border-border bg-surface-soft p-3">
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                {k.r}
+              </span>
+              <strong className="mt-1 block text-xl tabular-nums text-primary">{k.v}</strong>
+              <span className="text-xs text-muted-foreground">{k.s}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <h3 className="mb-3 text-sm font-bold">Ordens finalizadas por disciplina</h3>
+        <TabelaEditavel
+          linhas={op.disciplinas}
+          colunas={colunasDisciplina}
+          somenteLeitura={somenteLeitura}
+          onChange={(disciplinas) => set({ disciplinas })}
+          novaLinha={() => ({ id: novoId(), disciplina: "", quantidade: 0 })}
+          rotuloAdicionar="Adicionar disciplina"
+          vazio={{
+            titulo: "Nenhuma disciplina lançada",
+            descricao: "Elétrica, hidráulica, civil, CFTV — a lista é herdada pelos próximos meses.",
+          }}
+        />
+      </div>
+
+      <h3 className="text-sm font-bold">Ocorrências detalhadas</h3>
       <TabelaEditavel
         linhas={op.ocorrencias}
         colunas={colunas}
@@ -321,7 +424,12 @@ export const SecaoFornecedores = ({ dados, atualizar, somenteLeitura }: PropsSec
 /* Utilidades                                                                 */
 /* ========================================================================== */
 
-export const SecaoUtilidades = ({ dados, atualizar, somenteLeitura }: PropsSecao) => {
+export const SecaoUtilidades = ({
+  dados,
+  atualizar,
+  somenteLeitura,
+  competencia,
+}: PropsSecao & { competencia: string }) => {
   const set = (patch: Partial<DadosRelatorio["utilidades"]>) =>
     atualizar("utilidades", { ...dados.utilidades, ...patch });
 
@@ -391,15 +499,42 @@ export const SecaoUtilidades = ({ dados, atualizar, somenteLeitura }: PropsSecao
       ),
     },
     {
+      chave: "ponta",
+      titulo: "Ponta",
+      largura: "w-28",
+      alinhar: "direita",
+      render: (l, up) => (
+        <CampoNumero valor={l.ponta} desabilitado={somenteLeitura} onChange={(v) => up({ ponta: v })} />
+      ),
+    },
+    {
+      chave: "foraPonta",
+      titulo: "Fora ponta",
+      largura: "w-28",
+      alinhar: "direita",
+      render: (l, up) => (
+        <CampoNumero valor={l.foraPonta} desabilitado={somenteLeitura} onChange={(v) => up({ foraPonta: v })} />
+      ),
+    },
+    {
+      chave: "faltas",
+      titulo: "Faltas",
+      largura: "w-24",
+      alinhar: "direita",
+      render: (l, up) => (
+        <CampoNumero valor={l.faltas} desabilitado={somenteLeitura} onChange={(v) => up({ faltas: v })} />
+      ),
+    },
+    {
       chave: "detalhamento",
-      titulo: "Detalhamento",
+      titulo: "Observação",
       largura: "min-w-[180px]",
       render: (l, up) => (
         <CampoTexto
           valor={l.detalhamento}
           desabilitado={somenteLeitura}
           onChange={(v) => up({ detalhamento: v })}
-          placeholder="Ex.: 768 kWh ponta / 831 fora ponta"
+          placeholder="Ex.: leitura de 04/26 a 05/26"
         />
       ),
     },
@@ -423,6 +558,9 @@ export const SecaoUtilidades = ({ dados, atualizar, somenteLeitura }: PropsSecao
           unidade: "",
           consumo: 0,
           consumoAnterior: 0,
+          ponta: 0,
+          foraPonta: 0,
+          faltas: 0,
           detalhamento: "",
           fatura: 0,
           faturaAnterior: 0,
@@ -435,26 +573,26 @@ export const SecaoUtilidades = ({ dados, atualizar, somenteLeitura }: PropsSecao
         }}
       />
 
-      {dados.utilidades.linhas.some((l) => variacaoFatura(l) !== null) ? (
+      {dados.utilidades.linhas.some((l) => l.consumo > 0) ? (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {dados.utilidades.linhas.map((l) => {
-            const vf = variacaoFatura(l);
-            if (vf === null) return null;
-            return (
-              <div key={l.id} className="rounded-lg border border-border bg-surface-soft p-3">
-                <span className="text-xs font-semibold text-muted-foreground">
-                  {l.utilidade} · variação da fatura
-                </span>
-                <strong
-                  className={`mt-1 block text-lg tabular-nums ${
-                    vf > 10 ? "text-semaforo-vermelho" : vf > 0 ? "text-semaforo-amarelo" : "text-semaforo-verde"
-                  }`}
-                >
-                  {formatarVariacao(vf)}
-                </strong>
-              </div>
-            );
-          })}
+          {dados.utilidades.linhas
+            .filter((l) => l.consumo > 0)
+            .map((l) => {
+              const vf = variacaoFatura(l);
+              return (
+                <div key={l.id} className="rounded-lg border border-border bg-surface-soft p-3">
+                  <span className="text-xs font-semibold text-muted-foreground">{l.utilidade}</span>
+                  <strong className="mt-1 block text-lg tabular-nums text-primary">
+                    {formatarNumero(consumoMedioDiario(l, competencia), 1)} {l.unidade}/dia
+                  </strong>
+                  <span className="text-xs text-muted-foreground">
+                    consumo médio diário
+                    {vf !== null ? ` · fatura ${formatarVariacao(vf)}` : ""}
+                    {l.faltas > 0 ? ` · ${l.faltas} falta${l.faltas > 1 ? "s" : ""} no mês` : ""}
+                  </span>
+                </div>
+              );
+            })}
         </div>
       ) : null}
 
