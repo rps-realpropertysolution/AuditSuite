@@ -32,6 +32,7 @@ import { useEmpreendimentos } from "@/hooks/useEmpreendimentos";
 import { criarRelatorio, salvarDados, useRelatorios } from "@/hooks/useRelatorios";
 import { buscarImportacaoLF } from "@/hooks/useImportacaoLF";
 import { aplicarImportacao } from "@/lib/importacao";
+import { marcarOrigem } from "@/lib/origem";
 import {
   competenciaDeReferencia,
   prazoEntrega,
@@ -143,7 +144,7 @@ const Dashboard = () => {
         }
         const resultado = await buscarImportacaoLF(rel.id);
         const mescla = aplicarImportacao(rel.dados, resultado);
-        await salvarDados(rel.id, mescla.dados);
+        await salvarDados(rel.id, marcarOrigem(rel.dados, mescla.dados, "lf"));
         atualizar(i, {
           estado: "ok",
           detalhe: `${mescla.preenchido.length} blocos importados${mescla.avisos.length ? ` · ${mescla.avisos.length} aviso(s)` : ""}`,

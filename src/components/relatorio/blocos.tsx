@@ -12,6 +12,12 @@ import { Plus, Copy, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { SecaoId } from "@/lib/types";
 import { SeloSistema } from "./SeloSistema";
+import { useCorLinha } from "./OrigemDados";
+
+/** Linha da tabela; a cor de fundo diz a origem do dado (conferência temporária). */
+const LinhaTabela = ({ id, children }: { id: string; children: ReactNode }) => (
+  <tr className={cn("border-t border-border align-top transition hover:bg-surface-soft/40", useCorLinha(id))}>{children}</tr>
+);
 
 /* -------------------------------------------------------------------------- */
 /* Cartão de seção                                                             */
@@ -148,7 +154,7 @@ export const TabelaEditavel = <T extends { id: string }>({
           </thead>
           <tbody>
             {linhas.map((linha, i) => (
-              <tr key={linha.id} className="border-t border-border align-top transition hover:bg-surface-soft/40">
+              <LinhaTabela key={linha.id} id={linha.id}>
                 {colunas.map((c) => (
                   <td key={c.chave} className={cn("px-3 py-2", alinhamento(c.alinhar))}>
                     {c.render(linha, (patch) => atualizarLinha(i, patch), i)}
@@ -178,7 +184,7 @@ export const TabelaEditavel = <T extends { id: string }>({
                     </div>
                   </td>
                 ) : null}
-              </tr>
+              </LinhaTabela>
             ))}
           </tbody>
           {rodape ? <tfoot className="border-t-2 border-border bg-surface-soft">{rodape}</tfoot> : null}

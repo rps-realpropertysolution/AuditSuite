@@ -397,6 +397,9 @@ export interface DadosRelatorio {
 
   /** Relatórios exportados do sistema (PDF/Excel) que o gestor importou. */
   arquivosImportados: RegistroArquivo[];
+
+  /** TEMPORÁRIO: de onde veio cada linha/bloco (conferência visual no editor). */
+  origemDados?: { linhas: Record<string, "lf" | "arquivo">; blocos: Record<string, "lf" | "arquivo"> };
 }
 
 /** Um relatório do sistema importado por arquivo — vira a linha "Fontes:". */

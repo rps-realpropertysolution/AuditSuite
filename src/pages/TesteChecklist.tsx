@@ -6,6 +6,11 @@
 import { useEffect, useState } from "react";
 import { ChecklistMes } from "@/components/relatorio/ChecklistMes";
 import { ImportarArquivos } from "@/components/relatorio/ImportarArquivos";
+import { ContextoOrigem, LegendaOrigem } from "@/components/relatorio/OrigemDados";
+import { SecaoFinanceiro } from "@/components/relatorio/secoes-financeiro";
+import { SecaoOperacao } from "@/components/relatorio/secoes-operacao";
+import { marcarOrigem } from "@/lib/origem";
+import { relatorioEmBranco } from "@/lib/defaults";
 import { normalizarDados } from "@/lib/defaults";
 import type { DadosRelatorio } from "@/lib/types";
 
@@ -33,6 +38,22 @@ const TesteChecklist = () => {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!dados) return <p className="p-6">carregando…</p>;
+  // ?secoes=1 — cores de origem: tudo como LiveFacilities, grupos e fundos como arquivo
+  if (p.get("secoes")) {
+    const lf = marcarOrigem(relatorioEmBranco(), dados, "lf");
+    const semGrupos = { ...lf, financeiro: { ...lf.financeiro, grupos: [], fundos: [] } };
+    const marcado = marcarOrigem(semGrupos, lf, "arquivo");
+    const props = { dados: marcado, atualizar: () => undefined, somenteLeitura: false };
+    return (
+      <ContextoOrigem.Provider value={marcado.origemDados ?? null}>
+        <div className="mx-auto max-w-5xl space-y-6 p-6">
+          <LegendaOrigem />
+          <SecaoFinanceiro {...props} competencia="2026-10-01" />
+          <SecaoOperacao {...props} />
+        </div>
+      </ContextoOrigem.Provider>
+    );
+  }
   if (p.get("importar"))
     return (
       <ImportarArquivos

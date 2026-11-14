@@ -35,6 +35,8 @@ import {
 import { ImportarArquivos } from "@/components/relatorio/ImportarArquivos";
 import { SeloSistema } from "@/components/relatorio/SeloSistema";
 import { ChecklistMes } from "@/components/relatorio/ChecklistMes";
+import { ContextoOrigem, LegendaOrigem } from "@/components/relatorio/OrigemDados";
+import { marcarOrigem } from "@/lib/origem";
 import {
   SecaoContratos,
   SecaoDocumentos,
@@ -177,7 +179,7 @@ const EditorRelatorio = () => {
       } catch (e) {
         final = { ...mescla, avisos: [...mescla.avisos, `Contas de água e energia: ${e instanceof Error ? e.message : "não foi possível buscar"}.`] };
       }
-      setDados(final.dados);
+      setDados(marcarOrigem(dados, final.dados, "lf"));
       setResumoImportacao({ ...final, consultas: resultado.consultas });
     } catch (e) {
       setErroImportacao(e instanceof Error ? e.message : "Falha ao importar do LiveFacilities.");
@@ -244,7 +246,7 @@ const EditorRelatorio = () => {
           }}
           nomeEmpreendimento={emp?.nome}
           onAplicar={(novos) => {
-            setDados(novos);
+            setDados(marcarOrigem(dados, novos, "arquivo"));
             setImportandoArquivos(false);
           }}
           onFechar={() => setImportandoArquivos(false)}
@@ -436,7 +438,9 @@ const EditorRelatorio = () => {
               </ul>
             </nav>
 
+            <ContextoOrigem.Provider value={dados.origemDados ?? null}>
             <div className="min-w-0 flex-1 space-y-6">
+              <LegendaOrigem />
               {erroImportacao ? (
                 <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
                   <strong>Importação não concluída.</strong> {erroImportacao}
@@ -533,6 +537,7 @@ const EditorRelatorio = () => {
               <SecaoFotos {...props} relatorioId={relatorio.id} />
               <SecaoConclusao {...props} />
             </div>
+            </ContextoOrigem.Provider>
           </div>
         </AppShell>
       </div>

@@ -549,6 +549,10 @@ export const normalizarDados = (bruto: unknown): DadosRelatorio => {
       })),
     conclusao: txt(d.conclusao),
     importacao: normalizarImportacao(d.importacao),
+    origemDados:
+      d.origemDados && typeof d.origemDados === "object"
+        ? { linhas: { ...(d.origemDados.linhas ?? {}) }, blocos: { ...(d.origemDados.blocos ?? {}) } }
+        : undefined,
     arquivosImportados: lista<Record<string, unknown>>(d.arquivosImportados)
       .filter((a) => a && typeof a.titulo === "string")
       .map((a) => ({

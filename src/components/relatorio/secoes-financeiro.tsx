@@ -9,6 +9,7 @@ import {
   CampoListaBullets,
 } from "@/components/campos";
 import { ComentarioGestor, Secao, TabelaEditavel, type Coluna } from "./blocos";
+import { BlocoOrigem } from "./OrigemDados";
 import { novoId } from "@/lib/defaults";
 import { competenciaAnterior, formatarCompetencia, formatarMoeda, formatarVariacao } from "@/lib/format";
 import {
@@ -406,7 +407,8 @@ export const SecaoFinanceiro = ({ dados, atualizar, somenteLeitura, competencia 
         <p className="mb-3 text-xs text-muted-foreground">
           Emitido x recebido no mês (resumo de emissões). A taxa de inadimplência do mês é calculada.
         </p>
-        <div className="grid gap-4 sm:grid-cols-3">
+        <BlocoOrigem chave="financeiro.arrecadacao">
+<div className="grid gap-4 sm:grid-cols-3">
           <Campo label="Emitido no mês">
             <CampoMoeda
               valor={fin.arrecadacao.emitido}
@@ -431,6 +433,7 @@ export const SecaoFinanceiro = ({ dados, atualizar, somenteLeitura, competencia 
             <span className="text-xs text-muted-foreground">em aberto / emitido</span>
           </div>
         </div>
+</BlocoOrigem>
       </div>
 
       <Campo label="Saldo contábil x saldo bancário" dica="conciliação dos fundos — aparece no slide de fundos">

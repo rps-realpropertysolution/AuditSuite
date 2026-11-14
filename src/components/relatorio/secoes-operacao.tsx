@@ -12,6 +12,7 @@ import {
 } from "@/components/campos";
 import { ComentarioGestor, Secao, TabelaEditavel, type Coluna } from "./blocos";
 import { FotosDoSistema } from "./FotosDoSistema";
+import { BlocoOrigem } from "./OrigemDados";
 import { useUploadFotos, useUrlsAssinadas } from "@/hooks/useFotos";
 import { novoId } from "@/lib/defaults";
 import { formatarMoeda, formatarNumero, formatarVariacao } from "@/lib/format";
@@ -166,6 +167,7 @@ export const SecaoOperacao = ({ dados, atualizar, somenteLeitura }: PropsSecao) 
       descricao="Manutenções do mês e fluxo de pessoas no ativo."
     >
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <BlocoOrigem chave="operacao.ocupacao">
         <Campo label="Taxa de ocupação">
           <CampoPercentual
             valor={op.ocupacao}
@@ -174,6 +176,7 @@ export const SecaoOperacao = ({ dados, atualizar, somenteLeitura }: PropsSecao) 
             onChange={(v) => set({ ocupacao: v })}
           />
         </Campo>
+        </BlocoOrigem>
         <Campo label="Acessos de fixos">
           <CampoNumero
             valor={op.acessosFixos}
@@ -207,7 +210,8 @@ export const SecaoOperacao = ({ dados, atualizar, somenteLeitura }: PropsSecao) 
           O agregado que hoje sai do sistema de OS. Preencha os números do período — os percentuais
           de preventiva e de execução são calculados.
         </p>
-        <div className="grid gap-4 sm:grid-cols-3 xl:grid-cols-5">
+        <BlocoOrigem chave="operacao.resumo">
+<div className="grid gap-4 sm:grid-cols-3 xl:grid-cols-5">
           {(
             [
               ["preventivas", "Preventivas"],
@@ -226,6 +230,7 @@ export const SecaoOperacao = ({ dados, atualizar, somenteLeitura }: PropsSecao) 
             </Campo>
           ))}
         </div>
+</BlocoOrigem>
 
         <div className="mt-4 grid gap-4 sm:grid-cols-3">
           {[
@@ -258,7 +263,8 @@ export const SecaoOperacao = ({ dados, atualizar, somenteLeitura }: PropsSecao) 
           Vem do painel de OS do LiveFacilities na importação; pode ser ajustado à mão. Alimenta o
           slide de ordens de serviço e o indicador de desempenho operacional.
         </p>
-        <div className="grid gap-4 sm:grid-cols-3 xl:grid-cols-5">
+        <BlocoOrigem chave="operacao.situacaoOS">
+<div className="grid gap-4 sm:grid-cols-3 xl:grid-cols-5">
           {(
             [
               ["concluidasNoPrazo", "Concluídas no prazo"],
@@ -277,6 +283,7 @@ export const SecaoOperacao = ({ dados, atualizar, somenteLeitura }: PropsSecao) 
             </Campo>
           ))}
         </div>
+</BlocoOrigem>
         {totalOS(dados) > 0 ? (
           <p className="mt-3 text-xs text-muted-foreground">
             <strong className="text-foreground">{formatarNumero(totalOS(dados))} OS</strong> no período ·{" "}
