@@ -33,6 +33,7 @@ import {
   SecaoUtilidades,
 } from "@/components/relatorio/secoes-operacao";
 import { ImportarArquivos } from "@/components/relatorio/ImportarArquivos";
+import { SeloSistema } from "@/components/relatorio/SeloSistema";
 import {
   SecaoContratos,
   SecaoDocumentos,
@@ -404,7 +405,10 @@ const EditorRelatorio = () => {
                           : "font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
                       }`}
                     >
-                      {s.rotulo}
+                      <span className="flex items-center gap-1.5">
+                        {s.rotulo}
+                        <SeloSistema secao={s.id} />
+                      </span>
                       {progresso[s.id] ? (
                         <Check className="h-3.5 w-3.5 shrink-0 text-semaforo-verde" />
                       ) : (
