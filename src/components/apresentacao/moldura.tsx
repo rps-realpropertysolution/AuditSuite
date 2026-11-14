@@ -1,17 +1,21 @@
 /**
- * Moldura dos slides do RGM — o padrão visual do relatório corporativo RPS.
+ * Moldura dos slides do RGM — linguagem "executiva cinematográfica".
  *
- * Todo slide é desenhado num palco FIXO de 1280×720 (16:9, igual ao PPTX).
- * Na tela, o <Palco> escala o slide inteiro para caber; na impressão, cada
- * slide vira uma página do mesmo tamanho. Por isso as medidas aqui são em
- * pixels absolutos: o slide nunca "quebra" em telas diferentes.
+ * Feita para conselho de investidor institucional: sóbria, com respiro, uma
+ * ideia por slide. O "cinema" está no ritmo, não no enfeite:
+ *  - capa e aberturas de capítulo em tela cheia, escuras, com a foto do ativo;
+ *  - slides de conteúdo claros, com uma MANCHETE (a conclusão) sob o título;
+ *  - na apresentação, entrada suave dos blocos e zoom lento nas fotos
+ *    (nada disso vai para o PDF nem roda com "reduzir movimento").
+ *
+ * Todo slide é desenhado num palco FIXO de 1280×720 (16:9). Na tela, o
+ * <Palco> escala o slide; na impressão, cada slide vira uma página do mesmo
+ * tamanho. Por isso as medidas são em pixels absolutos.
  */
 
 import { createContext, useContext, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { ListChecks as IconeSumario, type LucideIcon } from "lucide-react";
-import fundoSlide from "@/assets/rgm/fundo-slide.jpg";
-import capa from "@/assets/rgm/capa.jpg";
-import encerramento from "@/assets/rgm/encerramento.jpg";
+import capa from "@/assets/rgm/capa-foto.jpg";
 import type { Semaforo } from "@/lib/types";
 import type { Topico } from "@/lib/leitura";
 
@@ -25,7 +29,9 @@ export const COR = {
   ciano: "#02B4D7",
   /** 2ª série dos gráficos — validada contra o azul (CVD ΔE 14,3). */
   indigo: "#3B3990",
-  cartao: "#F2F3F7",
+  /** Fundo das telas escuras (capa, aberturas, encerramento). */
+  noite: "#0C0E2B",
+  cartao: "#F4F5F9",
   linha: "#E3E5EE",
   texto: "#201E5A",
   apoio: "#5B5E77",
@@ -34,6 +40,31 @@ export const COR = {
   amarelo: "#E0A12B",
   vermelho: "#CC3B3B",
 } as const;
+
+/* -------------------------------------------------------------------------- */
+/* Marca RPS — vetorial, para fundo claro e escuro                             */
+/* -------------------------------------------------------------------------- */
+
+/** Logo RPS Real Property Solution, redesenhada em SVG a partir da marca. */
+export const MarcaRPS = ({ escura = false, altura = 30 }: { escura?: boolean; altura?: number }) => {
+  const letras = escura ? "#FFFFFF" : COR.navy;
+  const texto = escura ? "#FFFFFF" : COR.navy;
+  return (
+    <svg height={altura} viewBox="14 17 290 68" role="img" aria-label="RPS Real Property Solution" style={{ display: "block" }}>
+      <polygon fill={letras} points="16.61 44.73 16.61 57.18 16.61 69.64 16.61 82.09 29.07 82.09 29.07 69.64 29.07 57.18 29.07 44.73 29.07 32.27 16.61 32.27 16.61 44.73" />
+      <path fill={letras} d="m66.44,44.73v24.91c-4.08,0-7.7-1.97-9.97-5.01,6.04-4.55,9.97-11.75,9.97-19.9,0-13.76-11.15-24.91-24.91-24.91h0s-12.46,0-12.46,0v12.46h12.46c6.88,0,12.46,5.58,12.46,12.46s-5.58,12.46-12.46,12.46c0,4.45,1.18,8.61,3.22,12.22,4.28,7.57,12.38,12.69,21.69,12.69h12.46v-49.82h-12.46v12.46Z" />
+      <path fill={letras} d="m91.35,19.81h0s-12.46,0-12.46,0v12.46h12.46c6.88,0,12.46,5.58,12.46,12.46s-5.58,12.46-12.46,12.46v12.46c13.76,0,24.91-11.15,24.91-24.91s-11.15-24.91-24.91-24.91Z" />
+      <path fill={COR.ciano} d="m141.17,19.81h0c-13.76,0-24.91,11.15-24.91,24.91,0,4.54,1.22,8.79,3.34,12.46h18.52c.11,0,.2-.09.2-.2,0-.15-.2-.2-.21-.2-5.4-1.37-9.39-6.24-9.39-12.06,0-6.88,5.58-12.46,12.46-12.46h12.55c6.83,0,12.36-5.63,12.36-12.46h-24.91Z" />
+      <path fill={COR.azul} d="m141.17,82.09h0c13.76,0,24.91-11.15,24.91-24.91,0-4.54-1.22-8.79-3.34-12.46h-18.52c-.11,0-.2.09-.2.2,0,.15.2.2.21.2,5.4,1.37,9.39,6.24,9.39,12.06,0,6.88-5.58,12.46-12.46,12.46h-12.55c-6.83,0-12.36,5.63-12.36,12.46h24.91Z" />
+      <text x="182" y="40" fill={texto} style={{ font: "700 19px Poppins, sans-serif" }}>Real</text>
+      <text x="182" y="61" fill={texto} style={{ font: "700 19px Poppins, sans-serif" }}>Property</text>
+      <text x="182" y="82" fill={escura ? COR.ciano : COR.azul} style={{ font: "700 19px Poppins, sans-serif" }}>Solution</text>
+    </svg>
+  );
+};
+
+/** Rótulo pequeno em caixa alta e espaçado — a "assinatura" tipográfica do RGM. */
+const sobrancelha: CSSProperties = { fontSize: 11, fontWeight: 600, letterSpacing: "0.18em", textTransform: "uppercase" };
 
 /* -------------------------------------------------------------------------- */
 /* Capítulos e paginação (template corporativo RPS 360°)                       */
@@ -119,165 +150,323 @@ export const Palco = ({ children }: { children: ReactNode }) => {
 
 const base: CSSProperties = { position: "relative", width: LARGURA, height: ALTURA, overflow: "hidden" };
 
+/** Foto em tela cheia com véu escuro da esquerda — base das telas "de cinema". */
+const FotoDeFundo = ({ foto, veu = 0.94, intensidade = 1 }: { foto: string; veu?: number; intensidade?: number }) => (
+  <>
+    <img
+      src={foto}
+      alt=""
+      className="rgm-zoom"
+      style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: intensidade }}
+    />
+    <div
+      style={{
+        position: "absolute",
+        inset: 0,
+        background: `linear-gradient(90deg, rgba(12,14,43,${veu}) 0%, rgba(12,14,43,${veu * 0.82}) 42%, rgba(12,14,43,${veu * 0.25}) 100%)`,
+      }}
+    />
+    <div style={{ position: "absolute", inset: 0, background: "linear-gradient(0deg, rgba(12,14,43,0.55) 0%, rgba(12,14,43,0) 35%)" }} />
+  </>
+);
+
 export const SlideCapa = ({
   empreendimento,
   competencia,
   financeiro,
   cidade,
-  rotulo = "Relatório gerencial mensal · visão 360°",
+  foto,
+  gestor,
+  rotulo = "Relatório gerencial mensal",
   rotuloCompetencia = "Competência",
 }: {
   empreendimento: string;
   competencia: string;
   financeiro?: string;
   cidade?: string | null;
+  /** Foto do ativo; sem ela, a imagem institucional. */
+  foto?: string | null;
+  gestor?: string | null;
   rotulo?: string;
   rotuloCompetencia?: string;
 }) => (
-  <div className="slide-rgm" style={{ ...base, backgroundImage: `url(${capa})`, backgroundSize: "cover" }}>
-    <div style={{ position: "absolute", left: 46, top: 422, right: 340 }}>
-      <p style={{ color: "#F4E11B", fontSize: 17, fontWeight: 700, letterSpacing: 0.3 }}>
-        {rotulo.toUpperCase()}
-      </p>
-      <h1 style={{ color: "#fff", fontSize: empreendimento.length > 28 ? 30 : 36, fontWeight: 700, lineHeight: 1.15, marginTop: 6 }}>
+  <div className="slide-rgm" style={{ ...base, background: COR.noite }}>
+    <FotoDeFundo foto={foto || capa} veu={0.9} />
+    <div style={{ position: "absolute", left: 72, top: 64 }} className="rgm-anim">
+      <MarcaRPS escura altura={34} />
+    </div>
+    <div style={{ position: "absolute", left: 72, top: 250, width: 700 }}>
+      <p className="rgm-anim" style={{ ...sobrancelha, color: COR.ciano }}>{rotulo}</p>
+      <h1
+        className="rgm-anim"
+        style={{ color: "#fff", fontSize: empreendimento.length > 26 ? 48 : 62, fontWeight: 600, lineHeight: 1.05, marginTop: 18, letterSpacing: "-0.01em" }}
+      >
         {empreendimento}
       </h1>
-      <p style={{ color: "#fff", fontSize: 13.5, fontWeight: 600, marginTop: 12, whiteSpace: "nowrap" }}>
-        {rotuloCompetencia}: {competencia}
-        {financeiro ? <>&nbsp;&nbsp;·&nbsp;&nbsp;Financeiro: {financeiro} (última prestação fechada)</> : null}
-        {cidade ? <>&nbsp;&nbsp;·&nbsp;&nbsp;{cidade}</> : null}
+      <div className="rgm-anim" style={{ width: 56, height: 3, background: COR.ciano, marginTop: 28 }} />
+      <p className="rgm-anim" style={{ color: "#fff", fontSize: 30, fontWeight: 300, marginTop: 22 }}>
+        {competencia}
       </p>
+      {financeiro ? (
+        <p className="rgm-anim" style={{ color: "rgba(255,255,255,0.65)", fontSize: 13, marginTop: 10 }}>
+          {rotuloCompetencia === "Competência" ? "Operação do mês · " : ""}financeiro da última prestação fechada: {financeiro}
+        </p>
+      ) : null}
+    </div>
+    <div style={{ position: "absolute", left: 72, right: 72, bottom: 52, display: "flex", justifyContent: "space-between", color: "rgba(255,255,255,0.6)", fontSize: 12 }}>
+      <span>{[cidade, gestor ? `Gestão RPS: ${gestor}` : null].filter(Boolean).join("   ·   ")}</span>
+      <span style={{ ...sobrancelha, fontSize: 10 }}>Confidencial · uso do proprietário</span>
     </div>
   </div>
 );
 
-export const SlideEncerramento = ({ texto = "Obrigado" }: { texto?: string }) => (
-  <div className="slide-rgm" style={{ ...base, backgroundImage: `url(${encerramento})`, backgroundSize: "cover" }}>
-    <div style={{ position: "absolute", left: 40, top: 576, width: 60, height: 4, borderRadius: 2, background: COR.ciano }} />
-    <p style={{ position: "absolute", left: 40, top: 590, color: "#fff", fontSize: 48, fontWeight: 300 }}>{texto}</p>
+/**
+ * Abertura de capítulo (e do "mês em uma leitura"): tela escura, número
+ * grande, uma frase e até 4 números que resumem o capítulo.
+ */
+export const SlideAbertura = ({
+  numero,
+  sobretitulo,
+  titulo,
+  texto,
+  destaques = [],
+  foto,
+}: {
+  numero?: string;
+  sobretitulo?: string;
+  titulo: string;
+  texto?: string;
+  destaques?: { rotulo: string; valor: string; apoio?: string; semaforo?: Semaforo }[];
+  foto?: string | null;
+}) => {
+  const info = useContext(ContextoPagina);
+  return (
+    <div className="slide-rgm" style={{ ...base, background: COR.noite }}>
+      {foto ? <FotoDeFundo foto={foto} veu={0.95} intensidade={0.55} /> : null}
+      <div style={{ position: "absolute", left: 72, top: 56 }}>
+        <MarcaRPS escura altura={24} />
+      </div>
+      <div style={{ position: "absolute", left: 72, top: 150, width: 860 }}>
+        {numero ? (
+          <p className="rgm-anim num" style={{ fontSize: 120, fontWeight: 200, color: COR.ciano, lineHeight: 0.9, letterSpacing: "-0.03em" }}>
+            {numero}
+          </p>
+        ) : null}
+        {sobretitulo ? (
+          <p className="rgm-anim" style={{ ...sobrancelha, color: COR.ciano, marginTop: numero ? 18 : 0 }}>
+            {sobretitulo}
+          </p>
+        ) : null}
+        <h2 className="rgm-anim" style={{ fontSize: 46, fontWeight: 600, color: "#fff", lineHeight: 1.1, marginTop: 12, letterSpacing: "-0.01em" }}>
+          {titulo}
+        </h2>
+        {texto ? (
+          <p className="rgm-anim" style={{ fontSize: numero ? 17 : 22, fontWeight: 300, color: "rgba(255,255,255,0.82)", lineHeight: 1.45, marginTop: 18, maxWidth: 820 }}>
+            {texto}
+          </p>
+        ) : null}
+      </div>
+      {destaques.length ? (
+        <div
+          className="rgm-anim"
+          style={{
+            position: "absolute",
+            left: 72,
+            right: 72,
+            bottom: 74,
+            display: "grid",
+            gridTemplateColumns: `repeat(${Math.min(destaques.length, 4)}, 1fr)`,
+            borderTop: "1px solid rgba(255,255,255,0.18)",
+          }}
+        >
+          {destaques.slice(0, 4).map((d, i) => (
+            <div key={d.rotulo} style={{ padding: "20px 24px 0 0", paddingLeft: i ? 24 : 0, borderLeft: i ? "1px solid rgba(255,255,255,0.12)" : "none" }}>
+              <p style={{ ...sobrancelha, fontSize: 10, color: "rgba(255,255,255,0.6)", display: "flex", alignItems: "center", gap: 8 }}>
+                {d.semaforo ? <Ponto semaforo={d.semaforo} tamanho={8} /> : null}
+                {d.rotulo}
+              </p>
+              <p className="num" style={{ fontSize: 34, fontWeight: 600, color: "#fff", marginTop: 8, whiteSpace: "nowrap" }}>
+                {d.valor}
+              </p>
+              {d.apoio ? <p style={{ fontSize: 11.5, color: "rgba(255,255,255,0.6)", marginTop: 4 }}>{d.apoio}</p> : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {info ? (
+        <p style={{ position: "absolute", right: 72, top: 60, fontSize: 11, color: "rgba(255,255,255,0.5)" }}>
+          {info.rodape.split(" · ").slice(0, 2).join(" · ")}
+          <span style={{ marginLeft: 18, color: "rgba(255,255,255,0.8)" }}>{String(info.pagina).padStart(2, "0")}</span>
+        </p>
+      ) : null}
+    </div>
+  );
+};
+
+export const SlideEncerramento = ({
+  texto = "Obrigado.",
+  linhas = [],
+  foto,
+}: {
+  texto?: string;
+  /** Lembretes finais: decisões pendentes, próximo RGM, contato do gestor. */
+  linhas?: string[];
+  foto?: string | null;
+}) => (
+  <div className="slide-rgm" style={{ ...base, background: COR.noite }}>
+    {foto ? <FotoDeFundo foto={foto} veu={0.96} intensidade={0.5} /> : null}
+    <div style={{ position: "absolute", left: 72, top: 230 }}>
+      <div className="rgm-anim" style={{ width: 56, height: 3, background: COR.ciano }} />
+      <p className="rgm-anim" style={{ color: "#fff", fontSize: 64, fontWeight: 300, marginTop: 24, letterSpacing: "-0.01em" }}>
+        {texto}
+      </p>
+      {linhas.length ? (
+        <div className="rgm-anim" style={{ marginTop: 26, display: "flex", flexDirection: "column", gap: 8 }}>
+          {linhas.map((l) => (
+            <p key={l} style={{ color: "rgba(255,255,255,0.75)", fontSize: 16 }}>
+              {l}
+            </p>
+          ))}
+        </div>
+      ) : null}
+    </div>
+    <div style={{ position: "absolute", left: 72, bottom: 60 }}>
+      <MarcaRPS escura altura={34} />
+    </div>
+    <p style={{ position: "absolute", right: 72, bottom: 64, fontSize: 14, color: "rgba(255,255,255,0.7)", fontWeight: 300 }}>
+      Qualidade e confiança <strong style={{ fontWeight: 600, color: "#fff" }}>para seu patrimônio.</strong>
+    </p>
   </div>
 );
 
-/** Botões de capítulo no topo — o capítulo atual fica preenchido. */
+/** Progresso por capítulo no topo: 7 traços finos, o atual em destaque. Clicáveis. */
 const NavCapitulos = ({ info }: { info: InfoPagina }) => (
-  <div style={{ position: "absolute", right: 38, top: 28, display: "flex", alignItems: "center", gap: 6 }}>
-    <span style={{ fontSize: 8.5, fontWeight: 700, color: COR.apoio, marginRight: 8, letterSpacing: 0.3 }}>CAPÍTULOS</span>
+  <div style={{ position: "absolute", right: 48, top: 40, display: "flex", alignItems: "center", gap: 5 }}>
     {CAPITULOS.map((c) => {
       const ativo = info.capitulo === c.id;
       const destino = info.inicioCapitulo[c.id];
-      const estilo: CSSProperties = {
-        width: 40,
-        height: 24,
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        fontSize: 10.5,
-        fontWeight: ativo ? 700 : 400,
-        borderRadius: 4,
-        border: `1px solid ${ativo ? COR.navy : "#D3D6E2"}`,
-        background: ativo ? COR.navy : "#fff",
-        color: ativo ? "#fff" : destino ? COR.apoio : "#C4C6D2",
+      const traco: CSSProperties = {
+        display: "flex",
+        flexDirection: "column",
+        gap: 5,
+        width: 46,
         textDecoration: "none",
+        opacity: destino ? 1 : 0.35,
       };
+      const conteudo = (
+        <>
+          <span style={{ height: 3, borderRadius: 2, background: ativo ? COR.navy : "#D9DCE7" }} />
+          <span style={{ fontSize: 9, fontWeight: ativo ? 700 : 500, color: ativo ? COR.navy : COR.fraco, letterSpacing: "0.08em" }}>{c.id}</span>
+        </>
+      );
       return destino ? (
-        <a key={c.id} href={linkSlide(destino)} style={estilo} title={c.nome}>
-          {c.id}
+        <a key={c.id} href={linkSlide(destino)} style={traco} title={c.nome}>
+          {conteudo}
         </a>
       ) : (
-        <span key={c.id} style={estilo}>
-          {c.id}
+        <span key={c.id} style={traco}>
+          {conteudo}
         </span>
       );
     })}
   </div>
 );
 
-/** Rodapé: capítulo · contexto do relatório · link do sumário · página. */
-const Rodape = ({ info, rotulo }: { info: InfoPagina; rotulo: string }) => (
+/** Rodapé discreto: marca · contexto do relatório · sumário · página. */
+const Rodape = ({ info }: { info: InfoPagina }) => (
   <div
     style={{
       position: "absolute",
-      left: 37,
-      right: 38,
-      top: 691,
-      borderTop: `1px solid ${COR.linha}`,
-      paddingTop: 7,
+      left: 48,
+      right: 48,
+      bottom: 22,
       display: "flex",
       alignItems: "center",
       gap: 16,
       fontSize: 10,
+      color: COR.fraco,
     }}
   >
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 7, fontWeight: 700, color: COR.navy, minWidth: 240 }}>
-      <span style={{ width: 9, height: 9, background: COR.ciano }} />
-      {rotulo}
-    </span>
-    <span style={{ flex: 1, textAlign: "center", color: COR.apoio, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-      {info.rodape}
-    </span>
+    <MarcaRPS altura={17} />
+    <span style={{ flex: 1, textAlign: "center", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{info.rodape}</span>
     {info.sumario ? (
-      <a href={linkSlide(info.sumario)} style={{ fontWeight: 700, color: COR.azul, textDecoration: "none", width: 90, textAlign: "right" }}>
+      <a href={linkSlide(info.sumario)} style={{ fontWeight: 600, color: COR.azul, textDecoration: "none" }}>
         Sumário
       </a>
     ) : null}
-    <span style={{ color: COR.apoio, width: 70, textAlign: "right" }}>
-      Página <strong style={{ color: COR.navy }}>{info.pagina}</strong>
+    <span className="num" style={{ fontWeight: 600, color: COR.navy, minWidth: 22, textAlign: "right" }}>
+      {String(info.pagina).padStart(2, "0")}
     </span>
   </div>
 );
 
 /**
- * Slide padrão: cabeçalho da marca, capítulos, título em duas linhas, ícone,
- * fontes e rodapé paginado. Capítulo e página chegam pelo ContextoPagina.
+ * Slide de conteúdo: capítulo em sobrancelha, título, MANCHETE (a conclusão
+ * do slide em uma frase), corpo, fontes e rodapé. Capítulo e página chegam
+ * pelo ContextoPagina.
  */
 export const SlidePadrao = ({
   secao,
   sobretitulo,
-  icone: Icone,
+  manchete,
+  icone: _icone,
   fontes,
   children,
 }: {
   secao: string;
-  /** Primeira linha do título. Padrão: "CAPÍTULO 02 · GESTÃO FINANCEIRA". */
+  /** Sobrancelha. Padrão: "02 · Gestão financeira". */
   sobretitulo?: string;
-  icone: LucideIcon;
+  /** A conclusão do slide, em uma frase — o que o proprietário deve levar. */
+  manchete?: string;
+  /** Mantido por compatibilidade; o novo cabeçalho não usa ícone. */
+  icone?: LucideIcon;
   fontes?: string;
   children: ReactNode;
 }) => {
   const info = useContext(ContextoPagina);
   const cap = info?.capitulo ? CAPITULOS.find((c) => c.id === info.capitulo) : undefined;
-  const linha1 = sobretitulo ?? (cap ? `Capítulo ${cap.id} · ${cap.nome}` : "Relatório gerencial mensal");
-  const rotuloRodape = cap ? `Cap. ${cap.id} · ${cap.nome}` : sobretitulo ? sobretitulo.split("·").pop()!.trim() : "Relatório gerencial mensal";
+  const linha1 = sobretitulo ?? (cap ? `${cap.id} · ${cap.nome}` : "Relatório gerencial mensal");
+  const topo = manchete ? 178 : 146;
   return (
-  <div className="slide-rgm" style={{ ...base, backgroundImage: `url(${fundoSlide})`, backgroundSize: "cover" }}>
-    {info && Object.keys(info.inicioCapitulo).length ? <NavCapitulos info={info} /> : null}
-    <div style={{ position: "absolute", left: 40, top: 113, lineHeight: 1.15 }}>
-      <p style={{ fontSize: 23, fontWeight: 300, color: COR.navy }}>{linha1.toUpperCase()}</p>
-      <p style={{ fontSize: 23, fontWeight: 700, color: COR.navy }}>{secao.toUpperCase()}</p>
+    <div className="slide-rgm" style={{ ...base, background: "#fff" }}>
+      {info && Object.keys(info.inicioCapitulo).length ? <NavCapitulos info={info} /> : null}
+      <div style={{ position: "absolute", left: 48, top: 38, right: 420 }}>
+        <p className="rgm-anim" style={{ ...sobrancelha, color: COR.azul }}>{linha1}</p>
+        <h2 className="rgm-anim" style={{ fontSize: 30, fontWeight: 600, color: COR.navy, lineHeight: 1.15, marginTop: 10, letterSpacing: "-0.01em" }}>
+          {secao}
+        </h2>
+      </div>
+      {manchete ? (
+        <p
+          className="rgm-anim"
+          style={{
+            position: "absolute",
+            left: 48,
+            right: 48,
+            top: 126,
+            fontSize: 16,
+            fontWeight: 400,
+            color: COR.apoio,
+            lineHeight: 1.35,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
+          {manchete}
+        </p>
+      ) : null}
+      <div className="rgm-conteudo" style={{ position: "absolute", left: 48, right: 48, top: topo, bottom: fontes ? 74 : 56 }}>
+        {children}
+      </div>
+      {fontes ? (
+        <p style={{ position: "absolute", left: 48, right: 48, bottom: 50, fontSize: 9, color: COR.fraco, lineHeight: 1.3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          Fontes: {fontes}
+        </p>
+      ) : null}
+      <div style={{ position: "absolute", left: 48, right: 48, bottom: 46, height: 1, background: COR.linha }} />
+      {info ? <Rodape info={info} /> : null}
     </div>
-    <div
-      style={{
-        position: "absolute",
-        right: 38,
-        top: 117,
-        width: 53,
-        height: 53,
-        background: COR.navy,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      <Icone size={26} color="#fff" strokeWidth={2} />
-    </div>
-    <div style={{ position: "absolute", left: 37, right: 38, top: 187, bottom: 66 }}>{children}</div>
-    {fontes ? (
-      <p style={{ position: "absolute", left: 37, right: 38, bottom: 37, fontSize: 9.5, color: COR.apoio, lineHeight: 1.3 }}>
-        Fontes: {fontes}
-      </p>
-    ) : null}
-    {info ? <Rodape info={info} rotulo={rotuloRodape} /> : null}
-  </div>
   );
 };
 
@@ -388,10 +577,10 @@ export const CartaoKpi = ({
   tamanhoValor?: number;
 }) => (
   // minHeight: o cartão cresce se o texto de apoio quebrar linha (a grade iguala a altura da fileira)
-  <div style={{ background: COR.cartao, padding: "14px 16px", minHeight: altura, display: "flex", flexDirection: "column" }}>
+  <div style={{ background: COR.cartao, padding: "14px 18px", minHeight: altura, display: "flex", flexDirection: "column", borderTop: `2px solid ${COR.navy}` }}>
     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-      {Icone ? <Icone size={17} color={COR.azul} strokeWidth={2} /> : null}
-      <span style={{ fontSize: 10.5, fontWeight: 700, color: "#3D3F5A", flex: 1, textTransform: "uppercase" }}>{rotulo}</span>
+      {Icone ? <Icone size={15} color={COR.azul} strokeWidth={2} /> : null}
+      <span style={{ fontSize: 10, fontWeight: 600, color: COR.apoio, flex: 1, textTransform: "uppercase", letterSpacing: "0.08em" }}>{rotulo}</span>
       {semaforo ? <Ponto semaforo={semaforo} /> : null}
     </div>
     <p
@@ -429,8 +618,8 @@ export const CaixaLeitura = ({
   style?: CSSProperties;
   tamanho?: number;
 }) => (
-  <div style={{ background: COR.navy, color: "#fff", padding: "18px 20px", ...style }}>
-    <RotuloBloco cor={COR.ciano} style={{ marginBottom: 14 }}>
+  <div style={{ background: COR.noite, color: "#fff", padding: "18px 22px", borderLeft: `3px solid ${COR.ciano}`, ...style }}>
+    <RotuloBloco cor={COR.ciano} style={{ marginBottom: 14, letterSpacing: "0.14em", fontWeight: 600 }}>
       {titulo}
     </RotuloBloco>
     {topicos.length ? (
@@ -480,11 +669,20 @@ export const TabelaSlide = <T,>({
     <div>
       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: tamanho, tableLayout: "fixed" }}>
         <thead>
-          <tr style={{ background: COR.navy, color: "#fff" }}>
+          <tr style={{ borderBottom: `2px solid ${COR.navy}` }}>
             {colunas.map((c) => (
               <th
                 key={c.titulo}
-                style={{ textAlign: c.alinhar ?? "left", padding: "10px 8px", fontWeight: 700, width: c.largura, fontSize: tamanho }}
+                style={{
+                  textAlign: c.alinhar ?? "left",
+                  padding: "8px 8px 9px",
+                  fontWeight: 600,
+                  width: c.largura,
+                  fontSize: tamanho - 1.5,
+                  color: COR.apoio,
+                  letterSpacing: "0.06em",
+                  textTransform: "uppercase",
+                }}
               >
                 {c.titulo}
               </th>

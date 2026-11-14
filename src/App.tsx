@@ -19,6 +19,7 @@ const VisaoAnual = lazy(() => import("./pages/VisaoAnual"));
 const DemoApresentacao = import.meta.env.DEV ? lazy(() => import("./pages/DemoApresentacao")) : null;
 const PreviaLocal = import.meta.env.DEV ? lazy(() => import("./pages/PreviaLocal")) : null;
 const TesteArquivos = import.meta.env.DEV ? lazy(() => import("./pages/TesteArquivos")) : null;
+const TesteChecklist = import.meta.env.DEV ? lazy(() => import("./pages/TesteChecklist")) : null;
 
 const Carregando = () => (
   <div className="flex min-h-screen items-center justify-center gap-3 text-muted-foreground">
@@ -57,6 +58,16 @@ const App = () => (
                 element={
                   <Suspense fallback={<Carregando />}>
                     <PreviaLocal />
+                  </Suspense>
+                }
+              />
+            ) : null}
+            {TesteChecklist ? (
+              <Route
+                path="/teste-checklist"
+                element={
+                  <Suspense fallback={<Carregando />}>
+                    <TesteChecklist />
                   </Suspense>
                 }
               />

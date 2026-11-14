@@ -34,6 +34,7 @@ import {
 } from "@/components/relatorio/secoes-operacao";
 import { ImportarArquivos } from "@/components/relatorio/ImportarArquivos";
 import { SeloSistema } from "@/components/relatorio/SeloSistema";
+import { ChecklistMes } from "@/components/relatorio/ChecklistMes";
 import {
   SecaoContratos,
   SecaoDocumentos,
@@ -427,38 +428,25 @@ const EditorRelatorio = () => {
                 </p>
               ) : null}
 
-              {/* Convite para puxar os números do sistema */}
-              {interno && !somenteLeitura && !dados.importacao ? (
-                <section className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-primary/30 bg-primary/5 p-5">
-                  <div className="max-w-2xl">
-                    <h2 className="flex items-center gap-2 text-sm font-bold text-foreground">
-                      <CloudDownload className="h-4 w-4 text-primary" /> Comece pelos números do sistema
-                    </h2>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {integrado
-                        ? "Financeiro, inadimplência, ordens de serviço, contratos e documentos vêm do LiveFacilities em um clique. Você revisa, ajusta o que quiser e completa a leitura do mês."
-                        : "Cadastre o código do condomínio do LiveFacilities (ou use \"Trazer do LiveFacilities\" em Empreendimentos) para puxar os números automaticamente."}
-                    </p>
-                  </div>
-                  {integrado ? (
-                    <button
-                      type="button"
-                      onClick={() => void importarDoLiveFacilities()}
-                      disabled={importar.isPending}
-                      className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground transition hover:bg-primary/90 disabled:opacity-60"
-                    >
-                      {importar.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CloudDownload className="h-4 w-4" />}
-                      Importar {formatarCompetencia(relatorio.competencia)}
-                    </button>
-                  ) : (
-                    <Link
-                      to="/empreendimentos"
-                      className="inline-flex items-center gap-2 rounded-md border border-input bg-card px-4 py-2.5 text-sm font-semibold transition hover:border-primary hover:text-primary"
-                    >
-                      Configurar empreendimento
-                    </Link>
-                  )}
-                </section>
+              {/* Roteiro do mês: só o que falta, com o campo e a sugestão ali mesmo */}
+              {interno && !somenteLeitura ? (
+                <ChecklistMes
+                  dados={dados}
+                  atualizar={atualizar}
+                  integrado={integrado}
+                  importandoLF={importar.isPending}
+                  onImportarLF={() => void importarDoLiveFacilities()}
+                  onImportarArquivos={() => setImportandoArquivos(true)}
+                />
+              ) : null}
+              {interno && !somenteLeitura && !integrado ? (
+                <p className="text-xs text-muted-foreground">
+                  Este prédio ainda não está ligado ao LiveFacilities.{" "}
+                  <Link to="/empreendimentos" className="font-semibold text-primary hover:underline">
+                    Configurar o código do condomínio
+                  </Link>{" "}
+                  para puxar os números automaticamente.
+                </p>
               ) : null}
 
               {dados.importacao ? (

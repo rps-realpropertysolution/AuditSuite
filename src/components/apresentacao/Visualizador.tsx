@@ -116,7 +116,12 @@ export const Visualizador = ({
           else ir(-1);
         }}
       >
-        <Palco>{slides[indice]?.node}</Palco>
+        <Palco>
+          {/* key: cada troca de slide reinicia a entrada animada */}
+          <div key={slides[indice]?.id} className="rgm-entrada">
+            {slides[indice]?.node}
+          </div>
+        </Palco>
       </main>
 
       {grade ? (

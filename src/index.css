@@ -2,6 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer components {
+  .botao-primario {
+    @apply inline-flex items-center gap-2 rounded-md bg-primary px-3.5 py-2 text-sm font-bold text-primary-foreground transition hover:bg-primary/90 disabled:opacity-60;
+  }
+  .botao-secundario {
+    @apply inline-flex items-center gap-2 rounded-md border border-input bg-card px-3.5 py-2 text-sm font-semibold transition hover:border-primary hover:text-primary;
+  }
+}
+
 /* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
 All colors MUST be HSL.
 */
@@ -166,6 +175,72 @@ All colors MUST be HSL.
 
 .slide-rgm .num {
   font-variant-numeric: tabular-nums;
+}
+
+/* Movimento — só no modo reunião (.rgm-entrada envolve o slide atual).
+   Sóbrio: os blocos sobem e aparecem em sequência; fotos de capa e de
+   abertura ganham um zoom lento. Nada disso existe no PDF. */
+.rgm-entrada {
+  animation: rgm-surge 0.5s ease-out both;
+}
+.rgm-entrada .rgm-anim,
+.rgm-entrada .rgm-conteudo > * {
+  animation: rgm-sobe 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.rgm-entrada .rgm-anim:nth-of-type(2),
+.rgm-entrada .rgm-conteudo > *:nth-child(2) {
+  animation-delay: 0.08s;
+}
+.rgm-entrada .rgm-anim:nth-of-type(3),
+.rgm-entrada .rgm-conteudo > *:nth-child(3) {
+  animation-delay: 0.16s;
+}
+.rgm-entrada .rgm-anim:nth-of-type(4),
+.rgm-entrada .rgm-conteudo > *:nth-child(4) {
+  animation-delay: 0.24s;
+}
+.rgm-entrada .rgm-anim:nth-of-type(n + 5),
+.rgm-entrada .rgm-conteudo > *:nth-child(n + 5) {
+  animation-delay: 0.32s;
+}
+.rgm-entrada .rgm-zoom {
+  animation: rgm-zoom 16s ease-out both;
+}
+
+@keyframes rgm-surge {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes rgm-sobe {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes rgm-zoom {
+  from {
+    transform: scale(1.06);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rgm-entrada,
+  .rgm-entrada .rgm-anim,
+  .rgm-entrada .rgm-conteudo > *,
+  .rgm-entrada .rgm-zoom {
+    animation: none !important;
+  }
 }
 
 @media print {

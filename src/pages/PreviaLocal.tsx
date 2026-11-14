@@ -25,11 +25,28 @@ const PreviaLocal = () => {
   const ano = Number(p.get("ano") ?? "2026");
   const mes = p.get("mes");
   const unico = p.get("slide");
-  const [estado, setEstado] = useState<{ emp: Empreendimento; rels: Relatorio[] } | null>(null);
+  const [estado, setEstado] = useState<{ emp: Empreendimento; rels: Relatorio[]; fotoEmp?: string; urlsFotos?: Record<string, string> } | null>(null);
   const [erro, setErro] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
+      // ?cd=demo — exportação do prédio de demonstração em saida/demo/ (com fotos locais)
+      if (cd === "demo") {
+        const emp = (await (await fetch(`${RAIZ}/demo/empreendimento.json`)).json()) as Empreendimento;
+        const rels: Relatorio[] = [];
+        for (let m = 1; m <= 12; m++) {
+          const comp = `${ano}-${String(m).padStart(2, "0")}`;
+          const r = await fetch(`${RAIZ}/demo/${comp}.json`);
+          const txt = r.ok ? await r.text() : "";
+          if (!txt.startsWith("{")) continue;
+          const { dados } = JSON.parse(txt);
+          rels.push({ id: comp, empreendimento_id: emp.id, competencia: `${comp}-01`, status: "rascunho", dados: normalizarDados(dados), indice_executivo: null, publicado_em: null, created_at: "", updated_at: "", empreendimento: emp });
+        }
+        const foto = (p: string) => `${RAIZ}/demo/fotos/${p.split("/").pop()}`;
+        const urlsFotos = Object.fromEntries(rels.flatMap((r) => r.dados.fotos.map((f) => [f.path, foto(f.path)])));
+        setEstado({ emp, rels, fotoEmp: emp.foto_path ? foto(emp.foto_path) : undefined, urlsFotos });
+        return;
+      }
       const lista = (await (await fetch(`${RAIZ}/empreendimentos.json`)).json()) as { cdCondominio: string; nome: string; idEmpreendimento: number | null }[];
       const lf = lista.find((e) => e.cdCondominio === cd);
       if (!lf) throw new Error(`código ${cd} não está em empreendimentos.json`);
@@ -64,7 +81,9 @@ const PreviaLocal = () => {
   const slides = mes
     ? (() => {
         const atual = estado.rels.find((r) => r.competencia === `${ano}-${mes}-01`);
-        return atual ? montarSlides({ relatorio: atual, historico: estado.rels, urlsFotos: {} }) : [];
+        return atual
+          ? montarSlides({ relatorio: atual, historico: estado.rels, urlsFotos: estado.urlsFotos ?? {}, urlFotoEmpreendimento: estado.fotoEmp })
+          : [];
       })()
     : montarSlidesAnuais({ empreendimento: estado.emp, relatorios: estado.rels, ano });
 
