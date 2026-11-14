@@ -4,8 +4,10 @@
  * para preencher pelo time de inovação.
  *
  *   SUPABASE_SERVICE_ROLE_KEY=... npx vite-node -c scripts/vite-node.config.ts scripts/rgm/importar-arquivos.ts -- \
- *     --cd 1003 --competencia 2026-10 --pasta RGM-relatorios-P500-out2026 [--lf] [--gravar]
+ *     --cd 1003 --competencia 2026-10 [--pasta <dir>] [--lf] [--gravar]
  *
+ *   --pasta    padrão: "Arquivos do sistema/<cd> - <nome>/". Pode ter arquivos de
+ *              vários meses: só entra o que é do mês certo deste RGM.
  *   --lf       antes dos arquivos, importa o mês da API (como "Importar do LiveFacilities")
  *   --gravar   sem ele, só mostra o que faria
  *
@@ -31,10 +33,19 @@ const valor = (nome: string) => {
 };
 const cd = valor("cd");
 const competencia = valor("competencia");
-const pasta = valor("pasta");
 const gravar = args.includes("--gravar");
 const comLF = args.includes("--lf");
-if (!cd || !competencia || !pasta) throw new Error("uso: --cd 1003 --competencia 2026-10 --pasta <dir> [--lf] [--gravar]");
+if (!cd || !competencia) throw new Error("uso: --cd 1003 --competencia 2026-10 [--pasta <dir>] [--lf] [--gravar]");
+
+/** Padrão: "Arquivos do sistema/<cd> - <nome>/" — o gestor só solta os arquivos lá. */
+const RAIZ_ARQUIVOS = "Arquivos do sistema";
+const pasta =
+  valor("pasta") ??
+  (() => {
+    const achada = readdirSync(RAIZ_ARQUIVOS).find((n) => n.startsWith(`${cd} `));
+    if (!achada) throw new Error(`não há pasta do ${cd} em "${RAIZ_ARQUIVOS}"`);
+    return join(RAIZ_ARQUIVOS, achada);
+  })();
 
 const url = process.env.VITE_SUPABASE_URL;
 const chave = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -96,7 +107,10 @@ const resultado = aplicarArquivos(dados, arquivos, {
   cdCondominio: cd,
 });
 resultado.preenchido.forEach((p) => console.log(`  ✓ ${p.rotulo}: ${p.detalhe}`));
-resultado.recusados.forEach((r) => console.log(`  ✗ ${r.nome}: ${r.motivo}`));
+// Na pasta do prédio convivem vários meses: arquivo de outro mês só é listado, sem alarde.
+const outroMes = resultado.recusados.filter((r) => /^é de .* mas /.test(r.motivo));
+resultado.recusados.filter((r) => !outroMes.includes(r)).forEach((r) => console.log(`  ✗ ${r.nome}: ${r.motivo}`));
+if (outroMes.length) console.log(`  · ${outroMes.length} arquivo(s) de outros meses ficaram de fora: ${outroMes.map((r) => r.nome).join(", ")}`);
 resultado.avisos.forEach((a) => console.log(`  ! ${a}`));
 dados = resultado.dados;
 
