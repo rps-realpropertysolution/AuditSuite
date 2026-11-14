@@ -17,8 +17,8 @@ import {
   CalendarPlus,
   CalendarRange,
   CheckCircle2,
+  ChevronRight,
   CloudDownload,
-  FileText,
   Loader2,
   PenLine,
   Plus,
@@ -76,6 +76,9 @@ const Dashboard = () => {
   const [abrindo, setAbrindo] = useState<string | null>(null);
   const [lote, setLote] = useState<ProgressoLote[] | null>(null);
   const [rodandoLote, setRodandoLote] = useState(false);
+  /** Prédios abertos na lista — cada um mostra os relatórios dele. */
+  const [abertos, setAbertos] = useState<string[]>([]);
+  const alternar = (id: string) => setAbertos((a) => (a.includes(id) ? a.filter((x) => x !== id) : [...a, id]));
 
   const empreendimentos = useMemo(() => todosEmp.filter((e) => e.ativo), [todosEmp]);
 
@@ -291,164 +294,166 @@ const Dashboard = () => {
             ) : null}
           </div>
         ) : (
-          <div className="grid gap-5 lg:grid-cols-2 xl:grid-cols-3">
-            {[...situacao]
-              .sort((a, b) => {
-                const ordem: Record<SituacaoEntrega, number> = { atrasado: 0, nao_iniciado: 1, em_elaboracao: 2, publicado: 3 };
-                return ordem[a.entrega] - ordem[b.entrega] || a.empreendimento.nome.localeCompare(b.empreendimento.nome);
-              })
-              .map(({ empreendimento: emp, doMes, ultimo, total, entrega }) => {
-                const preenchimento = doMes ? percentualPreenchido(doMes.dados) : 0;
-                const nota = doMes?.indice_executivo ?? null;
-                return (
-                  <article key={emp.id} className="flex flex-col rounded-xl border border-border bg-card p-5 shadow-sm transition hover:shadow-md">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <h2 className="truncate text-base font-bold text-foreground">{emp.nome}</h2>
-                        <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                          {[emp.cidade, emp.gestor_nome].filter(Boolean).join(" · ") || "—"}
-                        </p>
-                      </div>
-                      {interno ? (
-                        <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold ${ENTREGA[entrega].estilo}`}>
-                          {entrega === "atrasado" ? <AlertTriangle className="h-3 w-3" /> : null}
-                          {ENTREGA[entrega].rotulo}
-                        </span>
-                      ) : nota !== null ? (
-                        <BadgeSemaforo semaforo={semaforoDaNota(nota)} rotulo={`${nota}/100`} />
-                      ) : null}
-                    </div>
-
-                    <div className="my-4 flex-1 rounded-lg bg-surface-soft p-3.5">
-                      {doMes ? (
-                        <>
-                          <div className="flex items-center justify-between gap-2 text-xs">
-                            <span className="font-semibold text-muted-foreground">
-                              {ROTULO_STATUS[doMes.status]}
-                              {doMes.dados.importacao ? " · dados do LiveFacilities" : ""}
-                            </span>
-                            {nota !== null ? <BadgeSemaforo semaforo={semaforoDaNota(nota)} rotulo={`Índice ${nota}`} /> : null}
-                          </div>
-                          <div className="mt-2.5">
-                            <div className="mb-1 flex justify-between text-xs font-semibold">
-                              <span className="text-muted-foreground">Preenchimento</span>
+          <section className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+            <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-5 py-3">
+              <h2 className="flex items-center gap-2 text-sm font-bold">
+                <Building2 className="h-4 w-4 text-primary" /> Empreendimentos
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                Situação de {formatarCompetencia(competencia)} · clique no prédio para ver os relatórios dele
+              </p>
+            </header>
+            <ul className="divide-y divide-border">
+              {[...situacao]
+                .sort((a, b) => {
+                  const ordem: Record<SituacaoEntrega, number> = { atrasado: 0, nao_iniciado: 1, em_elaboracao: 2, publicado: 3 };
+                  return ordem[a.entrega] - ordem[b.entrega] || a.empreendimento.nome.localeCompare(b.empreendimento.nome);
+                })
+                .map(({ empreendimento: emp, doMes, ultimo, total, entrega }) => {
+                  const preenchimento = doMes ? percentualPreenchido(doMes.dados) : 0;
+                  const nota = doMes?.indice_executivo ?? null;
+                  const aberto = abertos.includes(emp.id);
+                  const doPredio = relatorios.filter((r) => r.empreendimento_id === emp.id);
+                  return (
+                    <li key={emp.id}>
+                      <button
+                        type="button"
+                        onClick={() => alternar(emp.id)}
+                        aria-expanded={aberto}
+                        className="flex w-full flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3.5 text-left transition hover:bg-surface-soft/60"
+                      >
+                        <ChevronRight className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${aberto ? "rotate-90" : ""}`} />
+                        <div className="min-w-[180px] flex-1">
+                          <p className="font-bold text-foreground">{emp.nome}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {[emp.cidade, emp.gestor_nome].filter(Boolean).join(" · ") || (integrado(emp) ? "integrado ao LiveFacilities" : "—")}
+                          </p>
+                        </div>
+                        {doMes ? (
+                          <div className="hidden w-40 sm:block">
+                            <div className="mb-1 flex justify-between text-[11px] font-semibold text-muted-foreground">
+                              <span>Preenchimento</span>
                               <span className="tabular-nums">{preenchimento}%</span>
                             </div>
                             <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-                              <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${preenchimento}%` }} />
+                              <div className="h-full rounded-full bg-primary" style={{ width: `${preenchimento}%` }} />
                             </div>
                           </div>
-                        </>
-                      ) : (
-                        <div className="text-xs text-muted-foreground">
-                          <p className={`font-semibold ${entrega === "atrasado" ? "text-semaforo-vermelho" : "text-foreground"}`}>
-                            Sem relatório de {formatarCompetencia(competencia)}
-                          </p>
-                          <p className="mt-1">
-                            {ultimo ? `Último: ${formatarCompetencia(ultimo.competencia)} · ${total} no total` : "Nenhum relatório gerado ainda"}
-                            {integrado(emp) ? " · integrado ao LiveFacilities" : ""}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-
-                    {total > 0 ? (
-                      <button
-                        type="button"
-                        onClick={() => navegar(`/empreendimento/${emp.id}/ano/${competencia.slice(0, 4)}`)}
-                        className="mb-2 inline-flex items-center justify-center gap-2 rounded-md border border-input px-4 py-2 text-sm font-semibold transition hover:border-primary hover:text-primary"
-                      >
-                        <CalendarRange className="h-4 w-4" /> Visão anual {competencia.slice(0, 4)}
-                      </button>
-                    ) : null}
-
-                    {interno ? (
-                      <button
-                        type="button"
-                        disabled={abrindo === emp.id || rodandoLote}
-                        onClick={() => void abrirOuCriar(emp.id, doMes)}
-                        className="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground transition hover:bg-primary/90 disabled:opacity-60"
-                      >
-                        {abrindo === emp.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : doMes ? (
-                          <>
-                            {doMes.status === "publicado" ? "Abrir relatório" : "Continuar relatório"} <ArrowRight className="h-4 w-4" />
-                          </>
                         ) : (
-                          <>
-                            <CalendarPlus className="h-4 w-4" />
-                            {ultimo ? "Criar a partir do mês anterior" : "Criar relatório"}
-                          </>
+                          <span className="hidden w-40 text-xs text-muted-foreground sm:block">
+                            sem RGM de {formatarCompetencia(competencia).split(" ")[0]}
+                          </span>
                         )}
-                      </button>
-                    ) : ultimo ? (
-                      <button
-                        type="button"
-                        onClick={() => navegar(`/relatorio/${ultimo.id}`)}
-                        className="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground transition hover:bg-primary/90"
-                      >
-                        Ver relatório <ArrowRight className="h-4 w-4" />
-                      </button>
-                    ) : null}
-                  </article>
-                );
-              })}
-          </div>
-        )}
-
-        {/* Histórico */}
-        {relatorios.length > 0 ? (
-          <section className="mt-12">
-            <h2 className="mb-4 flex items-center gap-2 text-lg font-bold">
-              <FileText className="h-5 w-5 text-primary" /> Todos os relatórios
-            </h2>
-            <div className="overflow-x-auto rounded-xl border border-border bg-card">
-              <table className="w-full border-collapse text-sm">
-                <thead>
-                  <tr className="bg-surface-soft text-left">
-                    {["Empreendimento", "Competência", "Status", "Índice", "Atualizado", ""].map((h) => (
-                      <th key={h} className="px-4 py-3 text-xs font-bold uppercase tracking-wide text-muted-foreground">
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {relatorios.map((r) => (
-                    <tr key={r.id} className="border-t border-border transition hover:bg-surface-soft/50">
-                      <td className="px-4 py-3 font-semibold">{r.empreendimento?.nome ?? "—"}</td>
-                      <td className="px-4 py-3 capitalize">{formatarCompetencia(r.competencia)}</td>
-                      <td className="px-4 py-3">
-                        <span className="inline-flex items-center gap-1.5 text-xs font-bold text-muted-foreground">
-                          {r.status === "publicado" ? <CheckCircle2 className="h-3.5 w-3.5 text-semaforo-verde" /> : <PenLine className="h-3.5 w-3.5" />}
-                          {ROTULO_STATUS[r.status]}
+                        <span className="w-24 text-xs tabular-nums text-muted-foreground">
+                          {total} {total === 1 ? "relatório" : "relatórios"}
                         </span>
-                      </td>
-                      <td className="px-4 py-3 tabular-nums">
-                        {r.indice_executivo !== null ? (
-                          <BadgeSemaforo semaforo={semaforoDaNota(r.indice_executivo)} rotulo={`${r.indice_executivo}`} />
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-muted-foreground">{formatarData(r.updated_at)}</td>
-                      <td className="px-4 py-3 text-right">
-                        <button
-                          type="button"
-                          onClick={() => navegar(`/relatorio/${r.id}`)}
-                          className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:underline"
-                        >
-                          Abrir <ArrowRight className="h-3.5 w-3.5" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                        {nota !== null ? <BadgeSemaforo semaforo={semaforoDaNota(nota)} rotulo={`Índice ${nota}`} /> : null}
+                        {interno ? (
+                          <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold ${ENTREGA[entrega].estilo}`}>
+                            {entrega === "atrasado" ? <AlertTriangle className="h-3 w-3" /> : null}
+                            {ENTREGA[entrega].rotulo}
+                          </span>
+                        ) : null}
+                      </button>
+
+                      {aberto ? (
+                        <div className="border-t border-border bg-surface-soft/40 px-5 py-4 sm:pl-12">
+                          <div className="mb-3 flex flex-wrap gap-2">
+                            {interno ? (
+                              <button
+                                type="button"
+                                disabled={abrindo === emp.id || rodandoLote}
+                                onClick={() => void abrirOuCriar(emp.id, doMes)}
+                                className="inline-flex items-center gap-2 rounded-md bg-primary px-3.5 py-2 text-sm font-bold text-primary-foreground transition hover:bg-primary/90 disabled:opacity-60"
+                              >
+                                {abrindo === emp.id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : doMes ? (
+                                  <>
+                                    {doMes.status === "publicado" ? "Abrir" : "Continuar"} {formatarCompetencia(competencia)}{" "}
+                                    <ArrowRight className="h-4 w-4" />
+                                  </>
+                                ) : (
+                                  <>
+                                    <CalendarPlus className="h-4 w-4" /> Criar {formatarCompetencia(competencia)}
+                                    {ultimo ? " a partir do mês anterior" : ""}
+                                  </>
+                                )}
+                              </button>
+                            ) : null}
+                            {total > 0 ? (
+                              <button
+                                type="button"
+                                onClick={() => navegar(`/empreendimento/${emp.id}/ano/${competencia.slice(0, 4)}`)}
+                                className="inline-flex items-center gap-2 rounded-md border border-input bg-card px-3.5 py-2 text-sm font-semibold transition hover:border-primary hover:text-primary"
+                              >
+                                <CalendarRange className="h-4 w-4" /> Visão anual {competencia.slice(0, 4)}
+                              </button>
+                            ) : null}
+                          </div>
+
+                          {doPredio.length ? (
+                            <div className="overflow-x-auto rounded-lg border border-border bg-card">
+                              <table className="w-full border-collapse text-sm">
+                                <thead>
+                                  <tr className="bg-surface-soft text-left">
+                                    {["Competência", "Status", "Índice", "Atualizado", ""].map((h) => (
+                                      <th key={h} className="px-4 py-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                                        {h}
+                                      </th>
+                                    ))}
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {doPredio.map((r) => (
+                                    <tr
+                                      key={r.id}
+                                      className={`border-t border-border transition hover:bg-surface-soft/50 ${r.competencia === competencia ? "bg-primary/5" : ""}`}
+                                    >
+                                      <td className="px-4 py-2 font-semibold capitalize">{formatarCompetencia(r.competencia)}</td>
+                                      <td className="px-4 py-2">
+                                        <span className="inline-flex items-center gap-1.5 text-xs font-bold text-muted-foreground">
+                                          {r.status === "publicado" ? (
+                                            <CheckCircle2 className="h-3.5 w-3.5 text-semaforo-verde" />
+                                          ) : (
+                                            <PenLine className="h-3.5 w-3.5" />
+                                          )}
+                                          {ROTULO_STATUS[r.status]}
+                                        </span>
+                                      </td>
+                                      <td className="px-4 py-2 tabular-nums">
+                                        {r.indice_executivo !== null ? (
+                                          <BadgeSemaforo semaforo={semaforoDaNota(r.indice_executivo)} rotulo={`${r.indice_executivo}`} />
+                                        ) : (
+                                          <span className="text-muted-foreground">—</span>
+                                        )}
+                                      </td>
+                                      <td className="px-4 py-2 text-muted-foreground">{formatarData(r.updated_at)}</td>
+                                      <td className="px-4 py-2 text-right">
+                                        <button
+                                          type="button"
+                                          onClick={() => navegar(`/relatorio/${r.id}`)}
+                                          className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:underline"
+                                        >
+                                          Abrir <ArrowRight className="h-3.5 w-3.5" />
+                                        </button>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          ) : (
+                            <p className="text-sm text-muted-foreground">Nenhum relatório deste prédio ainda.</p>
+                          )}
+                        </div>
+                      ) : null}
+                    </li>
+                  );
+                })}
+            </ul>
           </section>
-        ) : null}
+        )}
       </main>
     </AppShell>
   );
