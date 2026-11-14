@@ -10,6 +10,8 @@
 import { useState, type ReactNode } from "react";
 import { Plus, Copy, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { SecaoId } from "@/lib/types";
+import { SeloSistema } from "./SeloSistema";
 
 /* -------------------------------------------------------------------------- */
 /* Cartão de seção                                                             */
@@ -36,7 +38,10 @@ export const Secao = ({ id, titulo, descricao, icone, acoes, children, aviso, cl
       <div className="flex items-start gap-3">
         {icone ? <span className="mt-0.5 text-primary">{icone}</span> : null}
         <div>
-          <h2 className="text-lg font-bold leading-tight text-foreground">{titulo}</h2>
+          <h2 className="flex items-center gap-2 text-lg font-bold leading-tight text-foreground">
+            {titulo}
+            {id ? <SeloSistema secao={id as SecaoId} className="mt-0.5" /> : null}
+          </h2>
           {descricao ? (
             <p className="mt-1 max-w-2xl text-sm leading-relaxed text-muted-foreground">{descricao}</p>
           ) : null}
