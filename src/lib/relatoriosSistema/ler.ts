@@ -7,7 +7,7 @@
 
 import { capitalizar } from "../../../supabase/functions/_shared/livefacilities/mapear.ts";
 import type { Foto } from "../types";
-import { decodificarTexto, ehHtml, linhasDeHtml } from "./htmlTabela";
+import { decodificarTexto, ehHtml, ehZip, linhasDeHtml } from "./htmlTabela";
 import { linhasDoPdf } from "./linhas";
 import type { ArquivoLido } from "./tipos";
 
@@ -43,12 +43,16 @@ export const planilhaDeXls = (nome: string, bytes: Uint8Array): ArquivoLido => {
 
 export const lerArquivo = async (arquivo: File): Promise<ArquivoLido> => {
   if (arquivo.size > TAMANHO_MAX_ARQUIVO) throw new Error("arquivo acima de 150 MB");
-  if (/\.xlsx$/i.test(arquivo.name)) {
-    const { default: readXlsxFile } = await import("read-excel-file");
-    const linhas = (await readXlsxFile(arquivo)) as unknown[][];
-    return { nome: arquivo.name, tipo: "planilha", linhas };
+  if (/\.(xlsx|xls|html?)$/i.test(arquivo.name)) {
+    // decide pelo CONTEÚDO, não pela extensão: o Live às vezes salva HTML como ".xlsx"
+    const bytes = new Uint8Array(await arquivo.arrayBuffer());
+    if (ehZip(bytes)) {
+      const { default: readXlsxFile } = await import("read-excel-file");
+      const linhas = (await readXlsxFile(arquivo)) as unknown[][];
+      return { nome: arquivo.name, tipo: "planilha", linhas };
+    }
+    return planilhaDeXls(arquivo.name, bytes);
   }
-  if (/\.(xls|html?)$/i.test(arquivo.name)) return planilhaDeXls(arquivo.name, new Uint8Array(await arquivo.arrayBuffer()));
   if (!/\.pdf$/i.test(arquivo.name)) throw new Error("formato não suportado — use PDF ou Excel (.xlsx ou .xls)");
 
   const { pdf } = await abrirPdf(arquivo);
