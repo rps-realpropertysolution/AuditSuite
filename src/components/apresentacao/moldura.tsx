@@ -16,6 +16,9 @@
 import { createContext, useContext, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { ListChecks as IconeSumario, type LucideIcon } from "lucide-react";
 import capa from "@/assets/rgm/capa-foto.jpg";
+// arte do template corporativo: logo RPS, slogan, filete e o desenho de linhas nos cantos
+import fundoSlide from "@/assets/rgm/fundo-slide.jpg";
+import encerramento from "@/assets/rgm/encerramento.jpg";
 import type { Semaforo } from "@/lib/types";
 import type { Topico } from "@/lib/leitura";
 
@@ -306,42 +309,32 @@ export const SlideAbertura = ({
 export const SlideEncerramento = ({
   texto = "Obrigado.",
   linhas = [],
-  foto,
 }: {
   texto?: string;
-  /** Lembretes finais: decisões pendentes, próximo RGM, contato do gestor. */
+  /** Lembretes finais: decisões pendentes, próximo RGM, contato do gestor (até 2 cabem). */
   linhas?: string[];
   foto?: string | null;
 }) => (
-  <div className="slide-rgm" style={{ ...base, background: COR.noite }}>
-    {foto ? <FotoDeFundo foto={foto} veu={0.96} intensidade={0.5} /> : null}
-    <div style={{ position: "absolute", left: 72, top: 230 }}>
-      <div className="rgm-anim" style={{ width: 56, height: 3, background: COR.ciano }} />
-      <p className="rgm-anim" style={{ color: "#fff", fontSize: 64, fontWeight: 300, marginTop: 24, letterSpacing: "-0.01em" }}>
-        {texto}
-      </p>
-      {linhas.length ? (
-        <div className="rgm-anim" style={{ marginTop: 26, display: "flex", flexDirection: "column", gap: 8 }}>
-          {linhas.map((l) => (
-            <p key={l} style={{ color: "rgba(255,255,255,0.75)", fontSize: 16 }}>
-              {l}
-            </p>
-          ))}
-        </div>
-      ) : null}
-    </div>
-    <div style={{ position: "absolute", left: 72, bottom: 60 }}>
-      <MarcaRPS escura altura={34} />
-    </div>
-    <p style={{ position: "absolute", right: 72, bottom: 64, fontSize: 14, color: "rgba(255,255,255,0.7)", fontWeight: 300 }}>
-      Qualidade e confiança <strong style={{ fontWeight: 600, color: "#fff" }}>para seu patrimônio.</strong>
+  // arte original do template: desenho geométrico, filete ciano e logo RPS
+  <div className="slide-rgm" style={{ ...base, backgroundImage: `url(${encerramento})`, backgroundSize: "cover" }}>
+    <p className="rgm-anim" style={{ position: "absolute", left: 40, top: 588, color: "#fff", fontSize: 46, fontWeight: 300 }}>
+      {texto}
     </p>
+    {linhas.length ? (
+      <div className="rgm-anim" style={{ position: "absolute", left: 40, top: 652, display: "flex", flexDirection: "column", gap: 3 }}>
+        {linhas.slice(0, 2).map((l) => (
+          <p key={l} style={{ color: "rgba(255,255,255,0.75)", fontSize: 13 }}>
+            {l}
+          </p>
+        ))}
+      </div>
+    ) : null}
   </div>
 );
 
 /** Progresso por capítulo no topo: 7 traços finos, o atual em destaque. Clicáveis. */
 const NavCapitulos = ({ info }: { info: InfoPagina }) => (
-  <div style={{ position: "absolute", right: 48, top: 40, display: "flex", alignItems: "center", gap: 5 }}>
+  <div style={{ position: "absolute", right: 38, top: 20, display: "flex", alignItems: "center", gap: 5 }}>
     {CAPITULOS.map((c) => {
       const ativo = info.capitulo === c.id;
       const destino = info.inicioCapitulo[c.id];
@@ -377,9 +370,9 @@ const Rodape = ({ info }: { info: InfoPagina }) => (
   <div
     style={{
       position: "absolute",
-      left: 48,
-      right: 48,
-      bottom: 22,
+      left: 37,
+      right: 38,
+      bottom: 20,
       display: "flex",
       alignItems: "center",
       gap: 16,
@@ -387,8 +380,7 @@ const Rodape = ({ info }: { info: InfoPagina }) => (
       color: COR.fraco,
     }}
   >
-    <MarcaRPS altura={17} />
-    <span style={{ flex: 1, textAlign: "center", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{info.rodape}</span>
+    <span style={{ flex: 1, textAlign: "left", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{info.rodape}</span>
     {info.sumario ? (
       <a href={linkSlide(info.sumario)} style={{ fontWeight: 600, color: COR.azul, textDecoration: "none" }}>
         Sumário
@@ -426,13 +418,14 @@ export const SlidePadrao = ({
   const info = useContext(ContextoPagina);
   const cap = info?.capitulo ? CAPITULOS.find((c) => c.id === info.capitulo) : undefined;
   const linha1 = sobretitulo ?? (cap ? `${cap.id} · ${cap.nome}` : "Relatório gerencial mensal");
-  const topo = manchete ? 178 : 146;
+  // o topo (até ~105px) é da arte: logo, slogan e filete
+  const topo = manchete ? 204 : 176;
   return (
-    <div className="slide-rgm" style={{ ...base, background: "#fff" }}>
+    <div className="slide-rgm" style={{ ...base, background: "#fff", backgroundImage: `url(${fundoSlide})`, backgroundSize: "cover" }}>
       {info && Object.keys(info.inicioCapitulo).length ? <NavCapitulos info={info} /> : null}
-      <div style={{ position: "absolute", left: 48, top: 38, right: 420 }}>
+      <div style={{ position: "absolute", left: 37, top: 112, right: 38 }}>
         <p className="rgm-anim" style={{ ...sobrancelha, color: COR.azul }}>{linha1}</p>
-        <h2 className="rgm-anim" style={{ fontSize: 30, fontWeight: 600, color: COR.navy, lineHeight: 1.15, marginTop: 10, letterSpacing: "-0.01em" }}>
+        <h2 className="rgm-anim" style={{ fontSize: 28, fontWeight: 600, color: COR.navy, lineHeight: 1.15, marginTop: 6, letterSpacing: "-0.01em" }}>
           {secao}
         </h2>
       </div>
@@ -441,9 +434,9 @@ export const SlidePadrao = ({
           className="rgm-anim"
           style={{
             position: "absolute",
-            left: 48,
-            right: 48,
-            top: 126,
+            left: 37,
+            right: 38,
+            top: 168,
             fontSize: 16,
             fontWeight: 400,
             color: COR.apoio,
@@ -456,15 +449,15 @@ export const SlidePadrao = ({
           {manchete}
         </p>
       ) : null}
-      <div className="rgm-conteudo" style={{ position: "absolute", left: 48, right: 48, top: topo, bottom: fontes ? 74 : 56 }}>
+      <div className="rgm-conteudo" style={{ position: "absolute", left: 37, right: 38, top: topo, bottom: fontes ? 70 : 52 }}>
         {children}
       </div>
       {fontes ? (
-        <p style={{ position: "absolute", left: 48, right: 48, bottom: 50, fontSize: 9, color: COR.fraco, lineHeight: 1.3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+        <p style={{ position: "absolute", left: 37, right: 38, bottom: 48, fontSize: 9, color: COR.fraco, lineHeight: 1.3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
           Fontes: {fontes}
         </p>
       ) : null}
-      <div style={{ position: "absolute", left: 48, right: 48, bottom: 46, height: 1, background: COR.linha }} />
+      <div style={{ position: "absolute", left: 37, right: 38, bottom: 42, height: 1, background: COR.linha }} />
       {info ? <Rodape info={info} /> : null}
     </div>
   );

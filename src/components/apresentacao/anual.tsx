@@ -63,7 +63,9 @@ export const montarSlidesAnuais = ({
   relatorios,
   ano,
   hoje = new Date(),
+  animar = false,
 }: {
+  animar?: boolean;
   empreendimento: Empreendimento;
   relatorios: Relatorio[];
   ano: number;
@@ -186,10 +188,10 @@ export const montarSlidesAnuais = ({
           <YAxis hide />
           <Tooltip formatter={(v: number) => `R$ ${formatarNumero(v, 1)} mil`} />
           <Legend verticalAlign="top" align="right" iconType="square" wrapperStyle={{ fontSize: 11, top: -6 }} />
-          <Bar dataKey="Créditos" fill={COR.azul} radius={[4, 4, 0, 0]} maxBarSize={34} isAnimationActive={false}>
+          <Bar dataKey="Créditos" fill={COR.azul} radius={[4, 4, 0, 0]} maxBarSize={34} isAnimationActive={animar} animationDuration={900}>
             <LabelList dataKey="Créditos" position="top" style={ROTULO} formatter={(v: number) => (v ? formatarNumero(v, 0) : "")} />
           </Bar>
-          <Bar dataKey="Débitos" fill={COR.indigo} radius={[4, 4, 0, 0]} maxBarSize={34} isAnimationActive={false}>
+          <Bar dataKey="Débitos" fill={COR.indigo} radius={[4, 4, 0, 0]} maxBarSize={34} isAnimationActive={animar} animationDuration={900}>
             <LabelList dataKey="Débitos" position="top" style={ROTULO} formatter={(v: number) => (v ? formatarNumero(v, 0) : "")} />
           </Bar>
         </BarChart>
@@ -199,7 +201,7 @@ export const montarSlidesAnuais = ({
           <XAxis dataKey="mes" tick={EIXO} axisLine={{ stroke: COR.linha }} tickLine={false} />
           <YAxis hide domain={["auto", "auto"]} />
           <Tooltip formatter={(v: number) => `R$ ${formatarNumero(v, 1)} mil`} />
-          <Line dataKey="saldo" stroke={COR.navy} strokeWidth={2} dot={{ r: 5, fill: COR.navy }} connectNulls isAnimationActive={false}>
+          <Line dataKey="saldo" stroke={COR.navy} strokeWidth={2} dot={{ r: 5, fill: COR.navy }} connectNulls isAnimationActive={animar} animationDuration={900}>
             <LabelList dataKey="saldo" position="top" offset={10} style={ROTULO} formatter={(v: number) => (v === null ? "" : formatarNumero(v, 0))} />
           </Line>
         </LineChart>
@@ -219,7 +221,7 @@ export const montarSlidesAnuais = ({
               <YAxis hide domain={["auto", "auto"]} />
               <ReferenceLine y={0} stroke={COR.linha} />
               <Tooltip formatter={(v: number) => `R$ ${formatarNumero(v, 1)} mil`} />
-              <Bar dataKey="resultado" radius={3} maxBarSize={46} isAnimationActive={false}>
+              <Bar dataKey="resultado" radius={3} maxBarSize={46} isAnimationActive={animar} animationDuration={900}>
                 {dadosFin.map((x) => (
                   <Cell key={x.mes} fill={(x.resultado ?? 0) < 0 ? COR.vermelho : COR.verde} />
                 ))}
@@ -284,7 +286,7 @@ export const montarSlidesAnuais = ({
             <BarChart width={800} height={Math.min(40 + linhas.length * 44, 430)} data={linhas} layout="vertical" margin={{ top: 4, right: 140, left: 8, bottom: 4 }}>
               <XAxis type="number" hide />
               <YAxis type="category" dataKey="grupo" width={260} tick={{ ...EIXO, fill: COR.navy }} axisLine={false} tickLine={false} />
-              <Bar dataKey="valor" fill={COR.azul} radius={4} barSize={22} isAnimationActive={false}>
+              <Bar dataKey="valor" fill={COR.azul} radius={4} barSize={22} isAnimationActive={animar} animationDuration={900}>
                 <LabelList
                   dataKey="valor"
                   content={(p) => {
@@ -340,7 +342,7 @@ export const montarSlidesAnuais = ({
           <XAxis dataKey="mes" tick={EIXO} axisLine={{ stroke: COR.linha }} tickLine={false} />
           <YAxis hide domain={[0, "auto"]} />
           <Tooltip formatter={(v: number) => `R$ ${formatarNumero(v, 1)} mil`} />
-          <Line dataKey="total" stroke={COR.vermelho} strokeWidth={2} dot={{ r: 5, fill: COR.vermelho }} connectNulls isAnimationActive={false}>
+          <Line dataKey="total" stroke={COR.vermelho} strokeWidth={2} dot={{ r: 5, fill: COR.vermelho }} connectNulls isAnimationActive={animar} animationDuration={900}>
             <LabelList dataKey="total" position="top" offset={10} style={ROTULO} formatter={(v: number) => (v === null ? "" : formatarNumero(v, 1))} />
           </Line>
         </LineChart>
@@ -350,7 +352,7 @@ export const montarSlidesAnuais = ({
             <BarChart width={1205} height={190} data={dadosInad} margin={{ top: 22, right: 8, left: 8, bottom: 0 }}>
               <XAxis dataKey="mes" tick={EIXO} axisLine={{ stroke: COR.linha }} tickLine={false} />
               <YAxis hide />
-              <Bar dataKey="taxa" fill={COR.azul} radius={[4, 4, 0, 0]} maxBarSize={40} isAnimationActive={false}>
+              <Bar dataKey="taxa" fill={COR.azul} radius={[4, 4, 0, 0]} maxBarSize={40} isAnimationActive={animar} animationDuration={900}>
                 <LabelList dataKey="taxa" position="top" style={ROTULO} formatter={(v: number) => (v === null ? "" : `${formatarNumero(v, 1)}%`)} />
               </Bar>
             </BarChart>
@@ -379,7 +381,7 @@ export const montarSlidesAnuais = ({
             <BarChart width={590} height={420} data={dadosOS} margin={{ top: 22, right: 4, left: 4, bottom: 0 }}>
               <XAxis dataKey="mes" tick={EIXO} axisLine={{ stroke: COR.linha }} tickLine={false} />
               <YAxis hide domain={[0, 110]} />
-              <Bar dataKey="noPrazo" radius={[4, 4, 0, 0]} maxBarSize={36} isAnimationActive={false}>
+              <Bar dataKey="noPrazo" radius={[4, 4, 0, 0]} maxBarSize={36} isAnimationActive={animar} animationDuration={900}>
                 {dadosOS.map((x) => (
                   <Cell key={x.mes} fill={(x.noPrazo ?? 0) >= 90 ? COR.verde : (x.noPrazo ?? 0) >= 75 ? COR.amarelo : COR.vermelho} />
                 ))}
@@ -392,7 +394,7 @@ export const montarSlidesAnuais = ({
             <BarChart width={590} height={420} data={dadosOS} margin={{ top: 22, right: 4, left: 4, bottom: 0 }}>
               <XAxis dataKey="mes" tick={EIXO} axisLine={{ stroke: COR.linha }} tickLine={false} />
               <YAxis hide />
-              <Bar dataKey="atrasadas" fill={COR.indigo} radius={[4, 4, 0, 0]} maxBarSize={36} isAnimationActive={false}>
+              <Bar dataKey="atrasadas" fill={COR.indigo} radius={[4, 4, 0, 0]} maxBarSize={36} isAnimationActive={animar} animationDuration={900}>
                 <LabelList dataKey="atrasadas" position="top" style={ROTULO} formatter={(v: number) => (v === null ? "" : formatarNumero(v))} />
               </Bar>
             </BarChart>

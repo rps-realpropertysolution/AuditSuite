@@ -581,8 +581,9 @@ export const SecaoJuridico = ({ dados, atualizar, somenteLeitura }: PropsSecao) 
       <div>
         <h3 className="mb-1 text-sm font-bold">Posição de inadimplência</h3>
         <p className="mb-3 text-xs text-muted-foreground">
-          Por rubrica, como sai do sistema contábil. O total consolidado é calculado, e a posição de
-          fechamento vira a abertura do mês seguinte automaticamente.
+          Quanto os condôminos devem, separado por tipo de cobrança (ordinária, fundo de reserva…). Em cada
+          linha: o que já estava em atraso, o que foi recuperado no mês e o que atrasou no mês — o saldo é
+          calculado. Vem do LiveFacilities, e o saldo deste mês vira o ponto de partida do próximo.
         </p>
         <TabelaEditavel
           linhas={jur.inadimplencia.rubricas}

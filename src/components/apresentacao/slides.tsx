@@ -190,6 +190,8 @@ export interface ContextoSlides {
   urlsFotos: Record<string, string>;
   urlFotoEmpreendimento?: string | null;
   hoje?: Date;
+  /** Modo reunião: gráficos crescem ao entrar no slide. No PDF fica parado. */
+  animar?: boolean;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -248,6 +250,7 @@ const prazoProximo = (competencia: string) => {
 };
 
 export const montarSlides = (ctx: ContextoSlides): SlideMontado[] => {
+  const anima = Boolean(ctx.animar);
   const { relatorio } = ctx;
   const hoje = ctx.hoje ?? new Date();
   const d = relatorio.dados;
@@ -545,8 +548,15 @@ export const montarSlides = (ctx: ContextoSlides): SlideMontado[] => {
           },
       {
         rotulo: "Contratos",
-        valor: d.contratos.linhas.length ? `${ctr.vigentes} vigentes` : "—",
-        apoio: `${ctr.vencidos} ${ctr.vencidos === 1 ? "vencido" : "vencidos"} · ${ctr.emRenovacao} ${ctr.emRenovacao === 1 ? "renovação" : "renovações"} em até 120 dias`,
+        // o número em destaque é o problema (com a cor do semáforo); o que está em dia vai no apoio
+        valor: !d.contratos.linhas.length
+          ? "—"
+          : ctr.vencidos
+            ? `${ctr.vencidos} ${ctr.vencidos === 1 ? "vencido" : "vencidos"}`
+            : ctr.emRenovacao
+              ? `${ctr.emRenovacao} a renovar`
+              : `${ctr.vigentes} vigentes`,
+        apoio: `${ctr.vigentes} vigentes · ${ctr.emRenovacao} ${ctr.emRenovacao === 1 ? "renovação" : "renovações"} em até 120 dias`,
         icone: Handshake,
         semaforo: ind.contratos?.semaforo ?? "amarelo",
       },
@@ -679,10 +689,10 @@ export const montarSlides = (ctx: ContextoSlides): SlideMontado[] => {
               <YAxis hide />
               <Tooltip formatter={(v: number) => `R$ ${formatarNumero(v, 1)} mil`} />
               <Legend verticalAlign="top" align="center" iconType="square" wrapperStyle={{ fontSize: 11, top: -4 }} />
-              <Bar dataKey="Créditos" fill={COR.azul} radius={[4, 4, 0, 0]} isAnimationActive={false}>
+              <Bar dataKey="Créditos" fill={COR.azul} radius={[4, 4, 0, 0]} isAnimationActive={anima} animationDuration={900}>
                 <LabelList dataKey="Créditos" position="top" style={ROTULO_BARRA} formatter={(v: number) => formatarNumero(v, 1)} />
               </Bar>
-              <Bar dataKey="Débitos" fill={COR.indigo} radius={[4, 4, 0, 0]} isAnimationActive={false}>
+              <Bar dataKey="Débitos" fill={COR.indigo} radius={[4, 4, 0, 0]} isAnimationActive={anima} animationDuration={900}>
                 <LabelList dataKey="Débitos" position="top" style={ROTULO_BARRA} formatter={(v: number) => formatarNumero(v, 1)} />
               </Bar>
             </BarChart>
@@ -694,7 +704,7 @@ export const montarSlides = (ctx: ContextoSlides): SlideMontado[] => {
               <XAxis dataKey="mes" tick={EIXO} axisLine={{ stroke: COR.linha }} tickLine={false} />
               <YAxis hide domain={["auto", "auto"]} />
               <Tooltip formatter={(v: number) => `R$ ${formatarNumero(v, 1)} mil`} />
-              <Line type="linear" dataKey="saldo" name="Saldo" stroke={COR.navy} strokeWidth={2} dot={{ r: 5, fill: COR.navy }} isAnimationActive={false}>
+              <Line type="linear" dataKey="saldo" name="Saldo" stroke={COR.navy} strokeWidth={2} dot={{ r: 5, fill: COR.navy }} isAnimationActive={anima} animationDuration={900}>
                 <LabelList dataKey="saldo" position="top" offset={12} style={ROTULO_BARRA} formatter={(v: number) => formatarNumero(v, 0)} />
               </Line>
             </LineChart>
@@ -735,7 +745,7 @@ export const montarSlides = (ctx: ContextoSlides): SlideMontado[] => {
               <XAxis type="number" hide domain={dominioFundos} />
               <YAxis type="category" dataKey="fundo" width={190} tick={{ ...EIXO, fill: COR.navy }} axisLine={false} tickLine={false} />
               <Tooltip formatter={(v: number) => `R$ ${formatarNumero(v, 1)} mil`} />
-              <Bar dataKey="saldo" radius={4} barSize={22} isAnimationActive={false}>
+              <Bar dataKey="saldo" radius={4} barSize={22} isAnimationActive={anima} animationDuration={900}>
                 {dadosFundos.map((f) => (
                   <Cell key={f.fundo} fill={f.saldo < 0 ? COR.vermelho : COR.azul} />
                 ))}
@@ -773,7 +783,7 @@ export const montarSlides = (ctx: ContextoSlides): SlideMontado[] => {
                       <XAxis dataKey="mes" tick={EIXO} axisLine={false} tickLine={false} />
                       <YAxis hide domain={dominioReserva} />
                       <ReferenceLine y={0} stroke={COR.linha} />
-                      <Bar dataKey="saldo" radius={3} isAnimationActive={false}>
+                      <Bar dataKey="saldo" radius={3} isAnimationActive={anima} animationDuration={900}>
                         {reservaSerie.map((x) => (
                           <Cell key={x.mes} fill={x.saldo < 0 ? COR.vermelho : COR.azul} />
                         ))}
@@ -880,10 +890,10 @@ export const montarSlides = (ctx: ContextoSlides): SlideMontado[] => {
               <YAxis hide />
               <Tooltip formatter={(v: number) => `R$ ${formatarNumero(v, 1)} mil`} />
               <Legend verticalAlign="top" align="right" iconType="square" wrapperStyle={{ fontSize: 11, top: -6 }} />
-              <Bar dataKey="Previsto" fill={COR.azul} radius={[4, 4, 0, 0]} maxBarSize={44} isAnimationActive={false}>
+              <Bar dataKey="Previsto" fill={COR.azul} radius={[4, 4, 0, 0]} maxBarSize={44} isAnimationActive={anima} animationDuration={900}>
                 <LabelList dataKey="Previsto" position="top" style={{ ...ROTULO_BARRA, fontSize: 10 }} formatter={(v: number) => mil(v * 1000)} />
               </Bar>
-              <Bar dataKey="Realizado" fill={COR.indigo} radius={[4, 4, 0, 0]} maxBarSize={44} isAnimationActive={false}>
+              <Bar dataKey="Realizado" fill={COR.indigo} radius={[4, 4, 0, 0]} maxBarSize={44} isAnimationActive={anima} animationDuration={900}>
                 <LabelList dataKey="Realizado" position="top" style={{ ...ROTULO_BARRA, fontSize: 10 }} formatter={(v: number) => mil(v * 1000)} />
               </Bar>
             </BarChart>
@@ -941,7 +951,7 @@ export const montarSlides = (ctx: ContextoSlides): SlideMontado[] => {
               <XAxis type="number" hide />
               <YAxis type="category" dataKey="grupo" width={250} tick={{ ...EIXO, fill: COR.navy }} axisLine={false} tickLine={false} />
               <Tooltip formatter={(v: number) => formatarMoeda(v)} />
-              <Bar dataKey="valor" fill={COR.azul} radius={4} barSize={24} isAnimationActive={false}>
+              <Bar dataKey="valor" fill={COR.azul} radius={4} barSize={24} isAnimationActive={anima} animationDuration={900}>
                 <LabelList
                   dataKey="valor"
                   position="right"
@@ -1044,7 +1054,7 @@ export const montarSlides = (ctx: ContextoSlides): SlideMontado[] => {
                 <XAxis type="number" hide />
                 <YAxis type="category" dataKey="rubrica" width={170} tick={{ ...EIXO, fill: COR.navy }} axisLine={false} tickLine={false} />
                 <Tooltip formatter={(v: number) => `R$ ${formatarNumero(v, 1)} mil`} />
-                <Bar dataKey="total" fill={COR.azul} radius={4} barSize={22} isAnimationActive={false}>
+                <Bar dataKey="total" fill={COR.azul} radius={4} barSize={22} isAnimationActive={anima} animationDuration={900}>
                   <LabelList dataKey="total" position="right" style={ROTULO_BARRA} formatter={(v: number) => formatarNumero(v, 1)} />
                 </Bar>
               </BarChart>
@@ -1160,7 +1170,7 @@ export const montarSlides = (ctx: ContextoSlides): SlideMontado[] => {
                 <Tooltip formatter={(v: number) => `R$ ${formatarNumero(v, 1)} mil`} />
                 <Legend verticalAlign="top" iconType="square" wrapperStyle={{ fontSize: 11, top: -4 }} />
                 {nomes.map((n, i) => (
-                  <Bar key={n} dataKey={n} fill={i === 0 ? COR.azul : COR.indigo} radius={[4, 4, 0, 0]} isAnimationActive={false}>
+                  <Bar key={n} dataKey={n} fill={i === 0 ? COR.azul : COR.indigo} radius={[4, 4, 0, 0]} isAnimationActive={anima} animationDuration={900}>
                     <LabelList dataKey={n} position="top" style={ROTULO_BARRA} formatter={(v: number) => (v ? formatarNumero(v, 1) : "")} />
                   </Bar>
                 ))}
@@ -1246,7 +1256,7 @@ export const montarSlides = (ctx: ContextoSlides): SlideMontado[] => {
             <RotuloBloco>Situação dos {c.total} documentos cadastrados</RotuloBloco>
             <div style={{ position: "relative", width: 260, height: 240, margin: "0 auto" }}>
               <PieChart width={260} height={240}>
-                <Pie data={fatias} dataKey="valor" nameKey="nome" innerRadius={78} outerRadius={118} startAngle={90} endAngle={-270} stroke="#fff" strokeWidth={2} isAnimationActive={false}>
+                <Pie data={fatias} dataKey="valor" nameKey="nome" innerRadius={78} outerRadius={118} startAngle={90} endAngle={-270} stroke="#fff" strokeWidth={2} isAnimationActive={anima} animationDuration={900}>
                   {fatias.map((f) => (
                     <Cell key={f.nome} fill={f.cor} />
                   ))}
@@ -1379,7 +1389,7 @@ export const montarSlides = (ctx: ContextoSlides): SlideMontado[] => {
             <div style={{ width: 560, display: "flex", gap: 20 }}>
               <div style={{ position: "relative", width: 250, height: 250 }}>
                 <PieChart width={250} height={250}>
-                  <Pie data={fatias} dataKey="valor" nameKey="nome" innerRadius={78} outerRadius={120} startAngle={90} endAngle={-270} stroke="#fff" strokeWidth={2} isAnimationActive={false}>
+                  <Pie data={fatias} dataKey="valor" nameKey="nome" innerRadius={78} outerRadius={120} startAngle={90} endAngle={-270} stroke="#fff" strokeWidth={2} isAnimationActive={anima} animationDuration={900}>
                     {fatias.map((f) => (
                       <Cell key={f.nome} fill={f.cor} />
                     ))}
@@ -1403,7 +1413,7 @@ export const montarSlides = (ctx: ContextoSlides): SlideMontado[] => {
               <BarChart width={560} height={Math.min(30 + disciplinas.length * 40, 300)} data={disciplinas} layout="vertical" margin={{ top: 4, right: 50, left: 8, bottom: 4 }}>
                 <XAxis type="number" hide />
                 <YAxis type="category" dataKey="disciplina" width={150} tick={{ ...EIXO, fill: COR.navy }} axisLine={false} tickLine={false} />
-                <Bar dataKey="quantidade" fill={COR.azul} radius={4} barSize={20} isAnimationActive={false}>
+                <Bar dataKey="quantidade" fill={COR.azul} radius={4} barSize={20} isAnimationActive={anima} animationDuration={900}>
                   <LabelList dataKey="quantidade" position="right" style={ROTULO_BARRA} />
                 </Bar>
               </BarChart>
@@ -1751,7 +1761,7 @@ export const montarSlides = (ctx: ContextoSlides): SlideMontado[] => {
             <RotuloBloco>Action log — {plano.total} ações</RotuloBloco>
             <div style={{ position: "relative", width: 230, height: 220 }}>
               <PieChart width={230} height={220}>
-                <Pie data={fatias} dataKey="valor" nameKey="nome" innerRadius={70} outerRadius={108} startAngle={90} endAngle={-270} stroke="#fff" strokeWidth={2} isAnimationActive={false}>
+                <Pie data={fatias} dataKey="valor" nameKey="nome" innerRadius={70} outerRadius={108} startAngle={90} endAngle={-270} stroke="#fff" strokeWidth={2} isAnimationActive={anima} animationDuration={900}>
                   {fatias.map((f) => (
                     <Cell key={f.nome} fill={f.cor} />
                   ))}

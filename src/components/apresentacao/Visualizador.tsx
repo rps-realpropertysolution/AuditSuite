@@ -7,7 +7,7 @@
  *                janela de impressão abre sozinha.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Grid3x3, Maximize2, Printer, X } from "lucide-react";
 import { ALTURA, LARGURA, Palco } from "./moldura";
 import type { SlideMontado } from "./slides";
@@ -23,6 +23,12 @@ export const Visualizador = ({
 }) => {
   const [indice, setIndice] = useState(0);
   const [grade, setGrade] = useState(false);
+  // direção da troca: o slide entra pela direita ao avançar e pela esquerda ao voltar
+  const anterior = useRef(0);
+  const direcao = indice >= anterior.current ? "rgm-avanca" : "rgm-volta";
+  useEffect(() => {
+    anterior.current = indice;
+  }, [indice]);
   const total = slides.length;
   const ir = useCallback((delta: number) => setIndice((i) => Math.min(Math.max(i + delta, 0), Math.max(total - 1, 0))), [total]);
   const telaCheia = () =>
@@ -118,7 +124,7 @@ export const Visualizador = ({
       >
         <Palco>
           {/* key: cada troca de slide reinicia a entrada animada */}
-          <div key={slides[indice]?.id} className="rgm-entrada">
+          <div key={slides[indice]?.id} className={`rgm-entrada ${direcao}`}>
             {slides[indice]?.node}
           </div>
         </Palco>

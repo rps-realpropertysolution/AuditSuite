@@ -374,7 +374,7 @@ export const SecaoFornecedores = ({ dados, atualizar, somenteLeitura }: PropsSec
     },
     {
       chave: "realizado",
-      titulo: "Volume",
+      titulo: "Entregue no mês",
       largura: "w-32",
       alinhar: "direita",
       render: (l, up) => (
@@ -434,7 +434,7 @@ export const SecaoFornecedores = ({ dados, atualizar, somenteLeitura }: PropsSec
       id="fornecedores"
       titulo="Fornecedores e SLA"
       icone={<Truck className="h-5 w-5" />}
-      descricao="Volume entregue e aderência ao SLA contratado por disciplina."
+      descricao="Quanto cada fornecedor entregou no mês (ex.: 46 OS, 412 rotinas de limpeza, 1.488 postos de vigilância) e o SLA: o percentual feito dentro do prazo combinado em contrato."
     >
       <TabelaEditavel
         linhas={dados.fornecedores.linhas}
