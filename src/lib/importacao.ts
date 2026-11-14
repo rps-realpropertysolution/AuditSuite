@@ -41,11 +41,19 @@ export interface ResultadoMescla {
 export const PENDENCIAS_MANUAIS = [
   "Leitura do mês e comentários de cada seção",
   "Ocupação e controle de acesso",
-  "Utilidades (consumo e valor das faturas)",
-  "Frentes operacionais e ocorrências relevantes",
-  "Registro fotográfico",
+  "Ocorrências: o que foi feito e o resultado (Follow Up das OS)",
+  "Saldo do extrato bancário (conciliação)",
+  "Processos judiciais, obras (CAPEX) e ficha do prédio",
   "Plano de ação, riscos e decisões para o cliente",
-  "Orçado dos grupos contábeis, quando não houver",
+];
+
+/** O que entra pelos relatórios exportados do sistema (botão "Importar arquivos"). */
+export const PELOS_ARQUIVOS = [
+  "Orçado por grupo — Previsto x Realizado (PDF)",
+  "Saldo de cada fundo — Posição Financeira (PDF)",
+  "Água e energia — contas da Sabesp e da Enel (PDF)",
+  "Pedidos de compra — Lista de Pedidos (Excel)",
+  "Fotos — Prestação de Contas Operacional (PDF, na seção Evidências)",
 ];
 
 const fundoVazio = (f: LinhaFundo) => !f.anterior && !f.creditos && !f.debitos;
@@ -53,53 +61,21 @@ const CONSOLIDADO = "Consolidado";
 
 const A_DISTRIBUIR = "Saldo anterior a distribuir";
 
+/** Linhas que só a antiga abertura por fundo da API criava — provisórias. */
+const OUTROS_LANCAMENTOS = "Outros lançamentos";
+const ehProvisorio = (f: LinhaFundo) => [A_DISTRIBUIR, OUTROS_LANCAMENTOS].some((n) => chaveNome(n) === chaveNome(f.fundo));
+
 /**
- * Abertura por fundo. A API dá o movimento do mês por fundo, mas não o saldo
- * de cada fundo — só o consolidado. Então:
- *  - fundos já abertos no relatório (herdados do mês passado) recebem os
- *    créditos/débitos do mês e mantêm o saldo anterior encadeado;
- *  - na primeira vez, o saldo anterior consolidado fica numa linha "a
- *    distribuir" — o gestor reparte uma única vez e daí em diante encadeia.
- * Em qualquer caso o total confere com o consolidado do sistema.
+ * Saldo dos fundos pela API: só o CONSOLIDADO.
+ *
+ * A API não diz a que fundo pertence cada recebimento (os recibos chegam sem
+ * conta contábil), então abrir por fundo pelo fluxo de caixa deixava os fundos
+ * com saldo negativo e o dinheiro numa linha "Outros lançamentos". A abertura
+ * por fundo vem da Posição Financeira (importação de arquivos), que é exata.
  */
-const mesclarFundosPorFundo = (
-  fundos: LinhaFundo[],
-  lf: NonNullable<DadosLF["financeiro"]>,
-  porFundo: NonNullable<NonNullable<DadosLF["financeiro"]>["porFundo"]>,
-  avisos: string[],
-): LinhaFundo[] => {
-  const abertos = fundos.filter((f) => chaveNome(f.fundo) !== chaveNome(CONSOLIDADO) && chaveNome(f.fundo) !== chaveNome(A_DISTRIBUIR) && !fundoVazio(f));
-  const usados = new Set<string>();
-
-  const linhas: LinhaFundo[] = porFundo.map((m) => {
-    const existente = abertos.find((f) => !usados.has(f.id) && chaveNome(f.fundo) === chaveNome(m.fundo));
-    if (existente) usados.add(existente.id);
-    return { id: existente?.id ?? novoId(), fundo: existente?.fundo ?? m.fundo, anterior: existente?.anterior ?? 0, creditos: m.creditos, debitos: m.debitos };
-  });
-  // fundos abertos sem movimento no mês continuam, com o saldo
-  abertos.filter((f) => !usados.has(f.id)).forEach((f) => linhas.push({ ...f, creditos: 0, debitos: 0 }));
-
-  // o movimento por fundo precisa fechar com o total do sistema
-  const difCred = lf.creditos - linhas.reduce((s, l) => s + l.creditos, 0);
-  const difDeb = lf.debitos - linhas.reduce((s, l) => s + l.debitos, 0);
-  if (Math.abs(difCred) > 1 || Math.abs(difDeb) > 1) {
-    linhas.push({ id: novoId(), fundo: "Outros lançamentos", anterior: 0, creditos: Math.max(difCred, 0), debitos: Math.max(difDeb, 0) });
-  }
-
-  const difAnterior = lf.saldoAnterior - linhas.reduce((s, l) => s + l.anterior, 0);
-  if (Math.abs(difAnterior) > 1) {
-    linhas.push({ id: novoId(), fundo: A_DISTRIBUIR, anterior: difAnterior, creditos: 0, debitos: 0 });
-    avisos.push(
-      abertos.length
-        ? `O saldo anterior dos fundos difere do consolidado do LiveFacilities em ${formatarMoeda(difAnterior)} — lançado em "${A_DISTRIBUIR}" para conferência.`
-        : `Saldo anterior consolidado de ${formatarMoeda(lf.saldoAnterior)} lançado em "${A_DISTRIBUIR}". Reparta entre os fundos uma vez; nos próximos meses o saldo encadeia sozinho.`,
-    );
-  }
-  return linhas;
-};
-
 const mesclarFundos = (fundos: LinhaFundo[], lf: NonNullable<DadosLF["financeiro"]>, avisos: string[]) => {
-  if (lf.porFundo && lf.porFundo.length > 1) return mesclarFundosPorFundo(fundos, lf, lf.porFundo, avisos);
+  // Abertura provisória de uma importação antiga: vira o consolidado.
+  if (fundos.some(ehProvisorio)) fundos = [];
 
   const linhaLF: Omit<LinhaFundo, "id"> = {
     fundo: CONSOLIDADO,
@@ -121,7 +97,8 @@ const mesclarFundos = (fundos: LinhaFundo[], lf: NonNullable<DadosLF["financeiro
   if (fundos.every(fundoVazio)) return [{ id: novoId(), ...linhaLF }];
 
   avisos.push(
-    `Os fundos deste relatório foram abertos à mão e não foram alterados. Fluxo de caixa do LiveFacilities: ` +
+    `Os fundos deste relatório estão abertos por fundo e não foram alterados — importe a Posição Financeira do mês ` +
+      `(Importar arquivos do sistema) para atualizar cada fundo. Fluxo de caixa do LiveFacilities: ` +
       `anterior ${formatarMoeda(lf.saldoAnterior)}, créditos ${formatarMoeda(lf.creditos)}, ` +
       `débitos ${formatarMoeda(lf.debitos)}, saldo ${formatarMoeda(lf.saldoAtual)}.`,
   );

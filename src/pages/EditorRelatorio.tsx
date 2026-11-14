@@ -9,6 +9,7 @@ import {
   Cloud,
   CloudDownload,
   CloudOff,
+  FileUp,
   Loader2,
   Play,
   Printer,
@@ -28,8 +29,10 @@ import {
   SecaoFornecedores,
   SecaoFotos,
   SecaoOperacao,
+  SecaoSuprimentos,
   SecaoUtilidades,
 } from "@/components/relatorio/secoes-operacao";
+import { ImportarArquivos } from "@/components/relatorio/ImportarArquivos";
 import {
   SecaoContratos,
   SecaoDocumentos,
@@ -47,6 +50,7 @@ import { formatarCompetencia, formatarDataHora, tempoRelativo } from "@/lib/form
 import {
   calcularAlertas,
   calcularIndiceExecutivo,
+  competenciaFinanceira,
   percentualPreenchido,
   progressoSecoes,
   semaforoDaNota,
@@ -63,6 +67,7 @@ const NAV: { id: SecaoId; rotulo: string }[] = [
   { id: "documentos", rotulo: "Documentos" },
   { id: "juridico", rotulo: "Jurídico" },
   { id: "utilidades", rotulo: "Utilidades" },
+  { id: "suprimentos", rotulo: "Suprimentos" },
   { id: "capex", rotulo: "CAPEX" },
   { id: "valorGerado", rotulo: "Valor gerado" },
   { id: "riscos", rotulo: "Riscos" },
@@ -83,6 +88,7 @@ const EditorRelatorio = () => {
   const importar = useImportacaoLF();
   const [resumoImportacao, setResumoImportacao] = useState<EstadoResumoImportacao | null>(null);
   const [erroImportacao, setErroImportacao] = useState<string | null>(null);
+  const [importandoArquivos, setImportandoArquivos] = useState(false);
 
   // Carrega uma vez; a partir daí o estado local é a fonte de verdade
   useEffect(() => {
@@ -212,6 +218,22 @@ const EditorRelatorio = () => {
         <ResumoImportacao estado={resumoImportacao} onFechar={() => setResumoImportacao(null)} />
       ) : null}
 
+      {importandoArquivos ? (
+        <ImportarArquivos
+          dados={dados}
+          contexto={{
+            competencia: relatorio.competencia,
+            competenciaFinanceira: competenciaFinanceira({ competencia: relatorio.competencia, dados }),
+            cdCondominio: emp?.lf_cd_condominio ?? null,
+          }}
+          onAplicar={(novos) => {
+            setDados(novos);
+            setImportandoArquivos(false);
+          }}
+          onFechar={() => setImportandoArquivos(false)}
+        />
+      ) : null}
+
       <div className="screen-only">
         <AppShell>
           {/* Barra de contexto e ações */}
@@ -287,6 +309,17 @@ const EditorRelatorio = () => {
                   >
                     {importar.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CloudDownload className="h-4 w-4" />}
                     {importar.isPending ? "Importando…" : "Importar do LiveFacilities"}
+                  </button>
+                ) : null}
+
+                {interno && !somenteLeitura ? (
+                  <button
+                    type="button"
+                    onClick={() => setImportandoArquivos(true)}
+                    title="Previsto x Realizado, Posição Financeira, contas de água e luz e pedidos de compra exportados do sistema."
+                    className="inline-flex items-center gap-2 rounded-md border border-input px-3.5 py-2 text-sm font-semibold transition hover:border-primary hover:text-primary"
+                  >
+                    <FileUp className="h-4 w-4" /> Importar arquivos
                   </button>
                 ) : null}
 
@@ -432,6 +465,13 @@ const EditorRelatorio = () => {
                 </p>
               ) : null}
 
+              {dados.arquivosImportados.length ? (
+                <p className="text-xs text-muted-foreground">
+                  Arquivos do sistema importados:{" "}
+                  {dados.arquivosImportados.map((a) => `${a.titulo}${a.competencia ? ` (${formatarCompetencia(`${a.competencia}-01`)})` : ""}`).join(", ")}.
+                </p>
+              ) : null}
+
               {/* Alertas detectados automaticamente */}
               {alertas.length > 0 ? (
                 <section className="rounded-xl border border-border bg-card p-5">
@@ -478,6 +518,7 @@ const EditorRelatorio = () => {
               <SecaoDocumentos {...props} />
               <SecaoJuridico {...props} />
               <SecaoUtilidades {...props} competencia={relatorio.competencia} />
+              <SecaoSuprimentos {...props} />
               <SecaoCapex {...props} />
               <SecaoValorGerado {...props} />
               <SecaoRiscos {...props} />

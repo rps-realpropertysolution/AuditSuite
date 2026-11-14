@@ -243,12 +243,26 @@ As regras valem **no banco (RLS)**, não só na interface.
    (dia 10 do mês seguinte — `PRAZO_DIA` em `src/lib/entregas.ts`) e quem está atrasado.
 2. **Gerar o mês de todos os ativos** em um clique: cria cada relatório herdando o mês anterior e,
    nos integrados, já importa os números do LiveFacilities.
-3. **Revise e complete** no editor: o resumo da importação mostra o que veio, o que conferir e o
+3. **Importe os arquivos do sistema** (botão *Importar arquivos*): o que a API não entrega sai de
+   relatórios do LiveFacilities que o gestor exporta e arrasta no editor — tudo lido no navegador:
+
+   | Arquivo | Onde gerar | Preenche |
+   | --- | --- | --- |
+   | Previsto x Realizado (PDF) | Relatórios › Financeiro | orçado e realizado por grupo |
+   | Posição Financeira (PDF) | Relatórios › Financeiro | saldo de cada fundo |
+   | Lista de Boletos Pagos (Excel) | Relatórios › Financeiro | conferência dos créditos do mês |
+   | Contas Sabesp / Enel (PDF) | Lista Geral de Contas › Documento | água e energia |
+   | Lista de Pedidos (Excel) | Administrativo › Compras | slide de suprimentos |
+   | Prestação de Contas Operacional (PDF) | Operacional (com fotos) | fotos das OS — na seção Evidências |
+
+   O arquivo é recusado, com o motivo, se for de outro prédio ou de outro mês (o financeiro do RGM é
+   a **última prestação fechada**, normalmente o mês anterior). Em lote: `scripts/rgm/importar-arquivos.ts`.
+4. **Revise e complete** no editor: o resumo da importação mostra o que veio, o que conferir e o
    que fica com você. Autosave contínuo; a barra lateral mostra o que falta.
-4. Sem tempo para escrever? A apresentação gera uma **leitura gerencial automática** a partir dos
+5. Sem tempo para escrever? A apresentação gera uma **leitura gerencial automática** a partir dos
    números. O texto do gestor, quando existe, sempre prevalece.
-5. **Publique** — o relatório congela e fica visível para síndico e proprietário.
-6. **Apresente** ou gere o **PDF**: os mesmos slides 16:9 no padrão visual RPS (capa, painel 360°,
+6. **Publique** — o relatório congela e fica visível para síndico e proprietário.
+7. **Apresente** ou gere o **PDF**: os mesmos slides 16:9 no padrão visual RPS (capa, painel 360°,
    financeiro, inadimplência, OS, contratos, documentos, riscos, decisões…). Slide sem dado não entra.
 
 Atalhos da apresentação: `→` `espaço` avança · `←` volta · `G` todos os slides · `F` tela cheia ·

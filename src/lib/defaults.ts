@@ -101,6 +101,7 @@ export const relatorioEmBranco = (): DadosRelatorio => ({
     ],
     comentario: "",
   },
+  suprimentos: { pedidos: [], comentario: "" },
   capex: { linhas: [], comentario: "" },
   valorGerado: { linhas: [] },
   riscos: { linhas: [], comentario: "" },
@@ -108,7 +109,11 @@ export const relatorioEmBranco = (): DadosRelatorio => ({
   fotos: [],
   conclusao: "",
   importacao: null,
+  arquivosImportados: [],
 });
+
+/** Pedido que ainda corre: continua no relatório seguinte até finalizar. */
+export const pedidoEmAberto = (status: string) => !/finaliz|cancel|recus|reprov|entreg|conclu/i.test(status);
 
 /**
  * Herda a ESTRUTURA do mês anterior e zera o que é do período.
@@ -205,6 +210,11 @@ export const herdarDoMesAnterior = (ant: DadosRelatorio): DadosRelatorio => ({
     })),
     comentario: "",
   },
+  suprimentos: {
+    // pedidos ainda em curso continuam; os finalizados ficam no mês em que fecharam
+    pedidos: ant.suprimentos.pedidos.filter((p) => pedidoEmAberto(p.status)).map((p) => ({ ...p, id: novoId() })),
+    comentario: "",
+  },
   capex: {
     // concluídos saem de cena; os em andamento continuam sendo acompanhados
     linhas: ant.capex.linhas
@@ -231,6 +241,7 @@ export const herdarDoMesAnterior = (ant: DadosRelatorio): DadosRelatorio => ({
   fotos: [],
   conclusao: "",
   importacao: null,
+  arquivosImportados: [],
 });
 
 /* -------------------------------------------------------------------------- */
@@ -467,6 +478,19 @@ export const normalizarDados = (bruto: unknown): DadosRelatorio => {
         : base.utilidades.linhas,
       comentario: txt(d.utilidades?.comentario),
     },
+    suprimentos: {
+      pedidos: lista<Record<string, unknown>>(d.suprimentos?.pedidos).map((p) => ({
+        id: txt(p?.id, novoId()),
+        pedido: txt(p?.pedido),
+        categoria: txt(p?.categoria),
+        grupo: txt(p?.grupo),
+        status: txt(p?.status),
+        valor: num(p?.valor),
+        solicitacao: txt(p?.solicitacao),
+        prazo: txt(p?.prazo),
+      })),
+      comentario: txt(d.suprimentos?.comentario),
+    },
     capex: {
       linhas: lista<Record<string, unknown>>(d.capex?.linhas).map((c) => ({
         id: txt(c?.id, novoId()),
@@ -525,6 +549,15 @@ export const normalizarDados = (bruto: unknown): DadosRelatorio => {
       })),
     conclusao: txt(d.conclusao),
     importacao: normalizarImportacao(d.importacao),
+    arquivosImportados: lista<Record<string, unknown>>(d.arquivosImportados)
+      .filter((a) => a && typeof a.titulo === "string")
+      .map((a) => ({
+        nome: txt(a.nome),
+        titulo: txt(a.titulo),
+        competencia: txt(a.competencia),
+        em: txt(a.em),
+        secoes: lista<string>(a.secoes).filter((x) => typeof x === "string"),
+      })),
   };
 };
 

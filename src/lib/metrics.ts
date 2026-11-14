@@ -711,6 +711,7 @@ export const progressoSecoes = (d: DadosRelatorio): Record<string, boolean> => (
   juridico:
     d.juridico.processos.length > 0 || inadimplenciaTotal(d) !== 0 || d.juridico.acordos.length > 0,
   utilidades: d.utilidades.linhas.some((l) => l.consumo > 0),
+  suprimentos: d.suprimentos.pedidos.length > 0,
   capex: d.capex.linhas.length > 0,
   valorGerado: d.valorGerado.linhas.length > 0,
   riscos: d.riscos.linhas.length > 0,

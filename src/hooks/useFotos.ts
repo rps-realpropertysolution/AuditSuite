@@ -57,14 +57,22 @@ export const useUploadFotos = (relatorioId: string) => {
   const [progresso, setProgresso] = useState({ feitos: 0, total: 0 });
 
   const enviar = useCallback(
-    async (arquivos: File[]): Promise<ResultadoUpload> => {
+    async (
+      arquivos: File[],
+      /** Legenda e categoria por arquivo (mesma ordem) — usado pelas fotos do LiveFacilities. */
+      meta?: Pick<Foto, "legenda" | "categoria">[],
+    ): Promise<ResultadoUpload> => {
       const validos: File[] = [];
       const erros: string[] = [];
+      const metaDe = new Map<File, Pick<Foto, "legenda" | "categoria">>();
 
-      arquivos.forEach((a) => {
+      arquivos.forEach((a, i) => {
         if (!TIPOS.includes(a.type)) erros.push(`${a.name}: formato não suportado.`);
         else if (a.size > TAMANHO_MAX) erros.push(`${a.name}: acima de 10 MB.`);
-        else validos.push(a);
+        else {
+          validos.push(a);
+          if (meta?.[i]) metaDe.set(a, meta[i]);
+        }
       });
 
       if (validos.length === 0) return { fotos: [], erros };
@@ -82,7 +90,7 @@ export const useUploadFotos = (relatorioId: string) => {
           .upload(path, arquivo, { contentType: arquivo.type, upsert: false });
 
         if (error) erros.push(`${arquivo.name}: ${error.message}`);
-        else fotos.push({ id: novoId(), path, legenda: "", categoria: "geral" });
+        else fotos.push({ id: novoId(), path, legenda: "", categoria: "geral", ...metaDe.get(arquivo) });
 
         setProgresso((p) => ({ ...p, feitos: p.feitos + 1 }));
       }

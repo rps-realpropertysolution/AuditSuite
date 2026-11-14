@@ -44,3 +44,7 @@ scripts/livefacilities/saida/
 
 # Estado local do Supabase CLI (project-ref, URL do pooler) — gerado por "supabase link"
 supabase/.temp/
+
+# Relatórios exportados do LiveFacilities (dados de clientes)
+RGM-relatorios-*/
+*.xlsx

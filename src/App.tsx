@@ -18,6 +18,7 @@ const VisaoAnual = lazy(() => import("./pages/VisaoAnual"));
 // Só em desenvolvimento: slides com dados fictícios para revisar o layout.
 const DemoApresentacao = import.meta.env.DEV ? lazy(() => import("./pages/DemoApresentacao")) : null;
 const PreviaLocal = import.meta.env.DEV ? lazy(() => import("./pages/PreviaLocal")) : null;
+const TesteArquivos = import.meta.env.DEV ? lazy(() => import("./pages/TesteArquivos")) : null;
 
 const Carregando = () => (
   <div className="flex min-h-screen items-center justify-center gap-3 text-muted-foreground">
@@ -56,6 +57,16 @@ const App = () => (
                 element={
                   <Suspense fallback={<Carregando />}>
                     <PreviaLocal />
+                  </Suspense>
+                }
+              />
+            ) : null}
+            {TesteArquivos ? (
+              <Route
+                path="/teste-arquivos"
+                element={
+                  <Suspense fallback={<Carregando />}>
+                    <TesteArquivos />
                   </Suspense>
                 }
               />
