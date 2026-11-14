@@ -213,6 +213,7 @@ npm run lint
 
 | Papel | Enxerga | Pode editar |
 | --- | --- | --- |
+| `administrador` | tudo — passa em qualquer verificação de papel; só ele concede/revoga `administrador` | sim |
 | `diretoria`, `gestor` | todos os empreendimentos, inclusive rascunhos | sim |
 | `sindico`, `proprietario` | só os ativos vinculados, só relatórios **publicados** | não |
 
@@ -224,7 +225,8 @@ O cadastro **não concede acesso automaticamente**:
 - qualquer outro e-mail → fica **sem papel** e vê a tela *Acesso em análise*.
 
 Para liberar um síndico ou proprietário, use a tela **Acessos**: vincule o empreendimento e conceda
-o papel. Conceder papéis é exclusivo da `diretoria`; vincular empreendimentos, do time interno.
+o papel. Conceder papéis é exclusivo da `diretoria` (e do `administrador`, o único que concede
+`administrador`); vincular empreendimentos, do time interno.
 As regras valem **no banco (RLS)**, não só na interface.
 
 ### Proteções no banco

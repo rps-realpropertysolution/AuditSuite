@@ -53,7 +53,7 @@ Deno.serve(async (req) => {
     if (!usuario.user) return erro(401, "Sessão inválida. Entre de novo.");
 
     const { data: papeis } = await sb.from("user_roles").select("role").eq("user_id", usuario.user.id);
-    const interno = (papeis ?? []).some((p: { role: string }) => p.role === "diretoria" || p.role === "gestor");
+    const interno = (papeis ?? []).some((p: { role: string }) => ["administrador", "diretoria", "gestor"].includes(p.role));
     if (!interno) return erro(403, "Somente o time RPS pode importar dados.");
 
     const corpo = (await req.json().catch(() => ({}))) as { relatorioId?: string; acao?: string };

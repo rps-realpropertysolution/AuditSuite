@@ -62,7 +62,13 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
             <div className="hidden text-right sm:block">
               <p className="text-sm font-semibold leading-tight text-foreground">{nome}</p>
               <p className="text-xs text-muted-foreground">
-                {papeis.includes("diretoria") ? "Diretoria RPS" : interno ? "Gestor RPS" : "Acesso do cliente"}
+                {papeis.includes("administrador")
+                  ? "Administrador"
+                  : papeis.includes("diretoria")
+                    ? "Diretoria RPS"
+                    : interno
+                      ? "Gestor RPS"
+                      : "Acesso do cliente"}
               </p>
             </div>
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
