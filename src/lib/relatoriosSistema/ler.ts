@@ -7,6 +7,7 @@
 
 import { capitalizar } from "../../../supabase/functions/_shared/livefacilities/mapear.ts";
 import type { Foto } from "../types";
+import { decodificarTexto, ehHtml, linhasDeHtml } from "./htmlTabela";
 import { linhasDoPdf } from "./linhas";
 import type { ArquivoLido } from "./tipos";
 
@@ -27,6 +28,19 @@ const abrirPdf = async (arquivo: File) => {
   return { pdfjs, pdf };
 };
 
+/**
+ * ".xls" do LiveFacilities = página HTML com tabela (às vezes UTF-16). Vira
+ * planilha sem conversão manual. Excel binário antigo (BIFF) não é lido.
+ */
+export const planilhaDeXls = (nome: string, bytes: Uint8Array): ArquivoLido => {
+  if (bytes[0] === 0xd0 && bytes[1] === 0xcf && bytes[2] === 0x11 && bytes[3] === 0xe0) {
+    throw new Error("Excel antigo (.xls binário) — abra no Excel e salve como .xlsx");
+  }
+  const texto = decodificarTexto(bytes);
+  if (!ehHtml(texto)) throw new Error("não reconheci o conteúdo deste .xls");
+  return { nome, tipo: "planilha", linhas: linhasDeHtml(texto) };
+};
+
 export const lerArquivo = async (arquivo: File): Promise<ArquivoLido> => {
   if (arquivo.size > TAMANHO_MAX_ARQUIVO) throw new Error("arquivo acima de 150 MB");
   if (/\.xlsx$/i.test(arquivo.name)) {
@@ -34,8 +48,8 @@ export const lerArquivo = async (arquivo: File): Promise<ArquivoLido> => {
     const linhas = (await readXlsxFile(arquivo)) as unknown[][];
     return { nome: arquivo.name, tipo: "planilha", linhas };
   }
-  if (/\.xls$/i.test(arquivo.name)) throw new Error("salve a planilha como .xlsx (Excel atual) e importe de novo");
-  if (!/\.pdf$/i.test(arquivo.name)) throw new Error("formato não suportado — use PDF ou Excel (.xlsx)");
+  if (/\.(xls|html?)$/i.test(arquivo.name)) return planilhaDeXls(arquivo.name, new Uint8Array(await arquivo.arrayBuffer()));
+  if (!/\.pdf$/i.test(arquivo.name)) throw new Error("formato não suportado — use PDF ou Excel (.xlsx ou .xls)");
 
   const { pdf } = await abrirPdf(arquivo);
   try {

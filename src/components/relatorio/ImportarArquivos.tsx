@@ -7,7 +7,7 @@
  */
 
 import { useState } from "react";
-import { CheckCircle2, CircleAlert, ExternalLink, FileSpreadsheet, FileText, FileUp, Loader2, X, XCircle } from "lucide-react";
+import { CheckCircle2, CircleAlert, ExternalLink, FileSpreadsheet, FileText, FileUp, Loader2, Trash2, X, XCircle } from "lucide-react";
 import { interpretarArquivo } from "@/lib/relatoriosSistema/interpretar";
 import { aplicarArquivos, TITULO_RELATORIO, type ContextoAplicacao, type ResultadoArquivos } from "@/lib/relatoriosSistema/aplicar";
 import type { ResultadoLeitura } from "@/lib/relatoriosSistema/tipos";
@@ -44,7 +44,7 @@ const telasDoLive = (ctx: ContextoAplicacao) => {
   const [ao, mo] = ctx.competencia.split("-").map(Number);
   const vencimento = periodoDoMes(`${mo === 12 ? ao + 1 : ao}-${String(mo === 12 ? 1 : mo + 1).padStart(2, "0")}-01`);
   return [
-    { item: "Previsto x Realizado", formato: "PDF", url: `${LIVE}empreendimento/Emp_Previsaorealizadorelatorio.aspx`, preencher: `período ${fin.mes} a ${fin.mes}, botão Sintético` },
+    { item: "Previsto x Realizado", formato: "Excel (.xls) — de preferência", url: `${LIVE}empreendimento/Emp_Previsaorealizadorelatorio.aspx`, preencher: `período ${fin.mes} a ${fin.mes}; exporte em Excel (o PDF impresso da tela vira imagem e não é lido)` },
     { item: "Posição Financeira", formato: "PDF", url: `${LIVE}Empreendimento/Emp_PosicaoFinanceira.aspx`, preencher: `de ${fin.inicio} a ${fin.fim}` },
     { item: "Lista de Boletos Pagos", formato: "Excel", url: `${LIVE}Empreendimento/Emp_BoletosPagos.aspx`, preencher: `de ${fin.inicio} a ${fin.fim}, incluir avulsos, marcar Excel (conferência)` },
     { item: "Contas de água e energia", formato: "PDF", url: `${LIVE}PagamentoLista.aspx`, preencher: `filtre o prédio e o vencimento em ${vencimento.mes} (conta de ${op.mes}); abra o pagamento › aba Documento` },
@@ -71,12 +71,16 @@ export const ImportarArquivos = ({ dados, contexto, nomeEmpreendimento, onAplica
       }
     }
     // o mesmo arquivo de novo substitui o anterior
-    const todas = [...leituras.filter((l) => !novas.some((n) => n.nome === l.nome)), ...novas];
+    atualizarLista([...leituras.filter((l) => !novas.some((n) => n.nome === l.nome)), ...novas]);
+    setLendo(false);
+  };
+
+  const atualizarLista = (todas: ResultadoLeitura[]) => {
     setLeituras(todas);
     const validas = todas.flatMap((l) => ("relatorio" in l ? [{ nome: l.nome, relatorio: l.relatorio }] : []));
     setPrevia(validas.length ? aplicarArquivos(dados, validas, contexto) : null);
-    setLendo(false);
   };
+  const remover = (nome: string) => atualizarLista(leituras.filter((l) => l.nome !== nome));
 
   const erros = leituras.filter((l): l is Extract<ResultadoLeitura, { ok: false }> => "erro" in l);
   const recusados = previa?.recusados ?? [];
@@ -109,10 +113,10 @@ export const ImportarArquivos = ({ dados, contexto, nomeEmpreendimento, onAplica
           >
             {lendo ? <Loader2 className="mb-2 h-8 w-8 animate-spin text-primary" /> : <FileUp className="mb-2 h-8 w-8 text-primary" />}
             <strong className="text-sm">{lendo ? "Lendo os arquivos…" : "Arraste os relatórios aqui ou clique para selecionar"}</strong>
-            <span className="mt-1 text-xs text-muted-foreground">PDF ou Excel (.xlsx) · pode mandar vários de uma vez · prefira Excel quando o sistema oferecer</span>
+            <span className="mt-1 text-xs text-muted-foreground">PDF ou Excel (.xlsx ou o .xls do Live) · pode mandar vários de uma vez · prefira Excel quando o sistema oferecer</span>
             <input
               type="file"
-              accept=".pdf,.xlsx,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              accept=".pdf,.xlsx,.xls,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
               multiple
               className="sr-only"
               disabled={lendo}
@@ -149,12 +153,17 @@ export const ImportarArquivos = ({ dados, contexto, nomeEmpreendimento, onAplica
 
           {leituras.length ? (
             <section>
-              <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">Arquivos</h3>
+              <div className="mb-2 flex items-center justify-between">
+                <h3 className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Arquivos</h3>
+                <button type="button" onClick={() => atualizarLista([])} className="text-xs font-semibold text-muted-foreground hover:text-destructive">
+                  Limpar todos
+                </button>
+              </div>
               <ul className="divide-y divide-border rounded-lg border border-border text-sm">
                 {leituras.map((l) => {
                   const recusa = recusados.find((r) => r.nome === l.nome);
                   const titulo = "relatorio" in l ? (l.relatorio.tipo === "informativo" ? l.relatorio.titulo : TITULO_RELATORIO[l.relatorio.tipo]) : null;
-                  const Icone = /\.xlsx$/i.test(l.nome) ? FileSpreadsheet : FileText;
+                  const Icone = /\.xlsx?$/i.test(l.nome) ? FileSpreadsheet : FileText;
                   return (
                     <li key={l.nome} className="flex items-start gap-3 px-3 py-2.5">
                       <Icone className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
@@ -169,6 +178,15 @@ export const ImportarArquivos = ({ dados, contexto, nomeEmpreendimento, onAplica
                       ) : (
                         <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-semaforo-verde" />
                       )}
+                      <button
+                        type="button"
+                        onClick={() => remover(l.nome)}
+                        title="Tirar este arquivo"
+                        aria-label={`Tirar ${l.nome}`}
+                        className="-mr-1 rounded p-1 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
                     </li>
                   );
                 })}

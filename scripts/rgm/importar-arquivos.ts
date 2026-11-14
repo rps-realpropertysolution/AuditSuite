@@ -87,7 +87,7 @@ if (comLF) {
   mescla.avisos.forEach((a) => console.log(`  ! ${a}`));
 }
 
-const lista = readdirSync(pasta).filter((n) => /\.(pdf|xlsx)$/i.test(n));
+const lista = readdirSync(pasta).filter((n) => /\.(pdf|xlsx|xls)$/i.test(n));
 const arquivos: ArquivoParaAplicar[] = [];
 console.log("\nArquivos:");
 for (const nome of lista) {

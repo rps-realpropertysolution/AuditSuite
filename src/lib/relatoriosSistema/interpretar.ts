@@ -154,7 +154,8 @@ export const interpretarPrevistoRealizado = (linhas: string[]): PrevistoRealizad
       continue;
     }
     if (valores.length < 2) continue;
-    if (fundos.has(chaveRotulo) || !fundo) {
+    // cabeçalho de fundo: os da receita, ou qualquer "FUNDO …" que só tenha despesa
+    if (fundos.has(chaveRotulo) || /^fundo /.test(chaveRotulo) || !fundo) {
       fundo = capitalizar(rotulo);
       resultado.despesasPorFundo.push({ fundo, previsto: valores[0], realizado: valores[1] });
       ultimaDespesa = null;
@@ -469,6 +470,43 @@ export const interpretarPedidosCompra = (linhas: unknown[][]): PedidosCompra => 
   };
 };
 
+/**
+ * O Previsto x Realizado em ".xls" (HTML) vem na versão ANALÍTICA: abaixo de
+ * cada grupo de despesa aparecem as contas ("498 - TELEFONE"). Reescrevemos as
+ * linhas no formato do PDF sintético — período, seções e só os grupos — e o
+ * mesmo intérprete do PDF faz o resto.
+ */
+export const linhasDoPrevistoEmPlanilha = (planilha: unknown[][]): string[] => {
+  const linhas: string[] = [];
+  let secao: "receita" | "despesa" | null = null;
+  let periodo = "";
+  for (const bruta of planilha) {
+    const celulas = bruta.map((c) => texto(c));
+    const primeira = chaveNome(celulas[0] ?? "");
+    const mes = celulas.find((c) => /^\d{2}\/\d{4}$/.test(c));
+    if (/^(receita|despesas?)$/.test(primeira)) {
+      secao = primeira.startsWith("receita") ? "receita" : "despesa";
+      if (mes && !periodo) {
+        periodo = mes;
+        linhas.unshift(`PERÍODO ${mes}`, "RELATÓRIO DE PREVISTO X REALIZADO");
+      }
+      linhas.push(`${secao === "receita" ? "RECEITA" : "DESPESAS"} PREVISTO REALIZADO DIFERENÇA %VARIAÇÃO`);
+      continue;
+    }
+    if (!secao || /^previsto/.test(chaveNome(celulas.filter(Boolean)[0] ?? ""))) continue; // cabeçalho das colunas
+    if (/^total receita/.test(primeira)) {
+      linhas.push("TOTAL RECEITA X DESPESA");
+      secao = null;
+      continue;
+    }
+    // na despesa, a conta analítica ("498 - TELEFONE") já está somada no grupo
+    if (secao === "despesa" && /^\d+\s*-\s/.test(celulas[0] ?? "")) continue;
+    linhas.push(celulas.filter((c) => c !== "").join(" "));
+  }
+  if (!periodo) throw new Error("período (MM/AAAA) não encontrado na planilha do Previsto x Realizado");
+  return linhas;
+};
+
 /* -------------------------------------------------------------------------- */
 /* Reconhecimento                                                              */
 /* -------------------------------------------------------------------------- */
@@ -479,6 +517,9 @@ const reconhecer = (arquivo: ArquivoLido): RelatorioSistema => {
     const tem = (...nomes: string[]) => nomes.every((n) => cabecalhos.includes(n));
     if (tem("pagamento", "recibo", "vl pago")) return interpretarBoletosPagos(arquivo.linhas);
     if (tem("pedido", "status", "vl aprovado")) return interpretarPedidosCompra(arquivo.linhas);
+    if (tem("previsto", "realizado") && arquivo.linhas.some((l) => /^(receita|despesas?)$/.test(chaveNome(texto(l[0]))))) {
+      return interpretarPrevistoRealizado(linhasDoPrevistoEmPlanilha(arquivo.linhas));
+    }
     if (tem("os", "atividade", "prazo")) {
       return {
         tipo: "informativo",
@@ -486,11 +527,16 @@ const reconhecer = (arquivo: ArquivoLido): RelatorioSistema => {
         motivo: "As ordens de serviço já vêm direto do LiveFacilities no botão “Importar do LiveFacilities”. Este arquivo não é necessário.",
       };
     }
-    throw new Error("planilha não reconhecida — use as exportações de Boletos Pagos ou Lista de Pedidos");
+    throw new Error("planilha não reconhecida — use as exportações de Previsto x Realizado, Boletos Pagos ou Lista de Pedidos");
   }
 
   const linhas = arquivo.paginas.flat();
   const inicio = chaveNome(linhas.slice(0, 40).join(" "));
+  // impressão da tela "como imagem": só sobra o cabeçalho/rodapé ("PÁGINA 1 DE 3")
+  const soCabecalho = arquivo.paginas.every((p) => p.length <= 2) && linhas.every((l) => /p[aá]gina \d+ de \d+/i.test(l));
+  if (linhas.length && soCabecalho) {
+    throw new Error("este PDF é uma imagem (impressão da tela) e não tem texto para ler — exporte em Excel (.xls) no Live e arraste aqui");
+  }
   if (/relatorio de previsto x realizado/.test(inicio)) return interpretarPrevistoRealizado(linhas);
   if (/^posicao financeira/.test(inicio)) return interpretarPosicaoFinanceira(linhas);
   if (!linhas.length) throw new Error("PDF sem texto (conta escaneada) — confira e lance à mão");

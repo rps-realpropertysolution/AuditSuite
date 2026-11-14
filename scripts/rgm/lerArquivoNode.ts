@@ -5,6 +5,7 @@ import { basename } from "node:path";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import readXlsxFile from "read-excel-file/node";
 import { linhasDoPdf } from "@/lib/relatoriosSistema/linhas";
+import { decodificarTexto, ehHtml, linhasDeHtml } from "@/lib/relatoriosSistema/htmlTabela";
 import type { ArquivoLido } from "@/lib/relatoriosSistema/tipos";
 
 /** Páginas de texto lidas por arquivo — os relatórios cabem em poucas páginas. */
@@ -29,6 +30,12 @@ export const lerArquivoNode = async (caminho: string): Promise<ArquivoLido> => {
   if (/\.xlsx$/i.test(nome)) {
     const linhas = (await readXlsxFile(caminho)) as unknown[][];
     return { nome, tipo: "planilha", linhas };
+  }
+  if (/.(xls|html?)$/i.test(nome)) {
+    // ".xls" do LiveFacilities é HTML com tabela
+    const texto = decodificarTexto(new Uint8Array(await readFile(caminho)));
+    if (!ehHtml(texto)) throw new Error("não reconheci o conteúdo deste .xls");
+    return { nome, tipo: "planilha", linhas: linhasDeHtml(texto) };
   }
   return lerPdfBytes(nome, new Uint8Array(await readFile(caminho)));
 };
