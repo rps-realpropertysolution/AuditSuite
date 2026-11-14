@@ -7,7 +7,7 @@
  */
 
 import { useState } from "react";
-import { CheckCircle2, CircleAlert, FileSpreadsheet, FileText, FileUp, Loader2, X, XCircle } from "lucide-react";
+import { CheckCircle2, CircleAlert, ExternalLink, FileSpreadsheet, FileText, FileUp, Loader2, X, XCircle } from "lucide-react";
 import { interpretarArquivo } from "@/lib/relatoriosSistema/interpretar";
 import { aplicarArquivos, TITULO_RELATORIO, type ContextoAplicacao, type ResultadoArquivos } from "@/lib/relatoriosSistema/aplicar";
 import type { ResultadoLeitura } from "@/lib/relatoriosSistema/tipos";
@@ -17,19 +17,43 @@ import type { DadosRelatorio } from "@/lib/types";
 interface Props {
   dados: DadosRelatorio;
   contexto: ContextoAplicacao;
+  /** Nome do prédio — o gestor precisa selecioná-lo no topo do Live antes de abrir a tela. */
+  nomeEmpreendimento?: string;
   onAplicar: (dados: DadosRelatorio) => void;
   onFechar: () => void;
 }
 
-const COMO_GERAR: { item: string; caminho: string }[] = [
-  { item: "Previsto x Realizado (PDF)", caminho: "Relatórios › Financeiro › Previsto x Realizado — período do mês, botão Sintético" },
-  { item: "Posição Financeira (PDF)", caminho: "Relatórios › Financeiro › Posição Financeira — do dia 1 ao último dia do mês" },
-  { item: "Boletos pagos (Excel)", caminho: "Relatórios › Financeiro › Lista de Boletos Pagos — marque Excel (serve de conferência)" },
-  { item: "Contas de água e energia (PDF)", caminho: "Lista Geral de Contas › pagamento › aba Documento (Sabesp e Enel)" },
-  { item: "Pedidos de compra (Excel)", caminho: "Geral › Administrativo › Compras › Lista de Pedidos › Excel" },
-];
+/**
+ * Telas do LiveFacilities de onde sai cada arquivo. O Live não aceita prédio
+ * nem período na URL (formulário WebForms): o link abre a tela e o RGM mostra
+ * exatamente o que preencher. Rotas de API para isso não existem (confirmado
+ * na Gestão de Acessos API) — por isso o arquivo ainda passa pelo gestor.
+ */
+const LIVE = "https://rps.livefacilities.com.br/Operacional/";
+const periodoDoMes = (comp: string) => {
+  const [a, m] = comp.split("-").map(Number);
+  const fim = new Date(a, m, 0).getDate();
+  const mm = String(m).padStart(2, "0");
+  return { inicio: `01/${mm}/${a}`, fim: `${fim}/${mm}/${a}`, mes: `${mm}/${a}` };
+};
 
-export const ImportarArquivos = ({ dados, contexto, onAplicar, onFechar }: Props) => {
+const telasDoLive = (ctx: ContextoAplicacao) => {
+  const fin = periodoDoMes(ctx.competenciaFinanceira);
+  const op = periodoDoMes(ctx.competencia);
+  // a conta do consumo de outubro vence em novembro
+  const [ao, mo] = ctx.competencia.split("-").map(Number);
+  const vencimento = periodoDoMes(`${mo === 12 ? ao + 1 : ao}-${String(mo === 12 ? 1 : mo + 1).padStart(2, "0")}-01`);
+  return [
+    { item: "Previsto x Realizado", formato: "PDF", url: `${LIVE}empreendimento/Emp_Previsaorealizadorelatorio.aspx`, preencher: `período ${fin.mes} a ${fin.mes}, botão Sintético` },
+    { item: "Posição Financeira", formato: "PDF", url: `${LIVE}Empreendimento/Emp_PosicaoFinanceira.aspx`, preencher: `de ${fin.inicio} a ${fin.fim}` },
+    { item: "Lista de Boletos Pagos", formato: "Excel", url: `${LIVE}Empreendimento/Emp_BoletosPagos.aspx`, preencher: `de ${fin.inicio} a ${fin.fim}, incluir avulsos, marcar Excel (conferência)` },
+    { item: "Contas de água e energia", formato: "PDF", url: `${LIVE}PagamentoLista.aspx`, preencher: `filtre o prédio e o vencimento em ${vencimento.mes} (conta de ${op.mes}); abra o pagamento › aba Documento` },
+    { item: "Lista de Pedidos de Compra", formato: "Excel", url: `${LIVE}PedidoGestao.aspx`, preencher: `filtre o prédio e a solicitação de ${op.inicio} a ${op.fim}; exportar Excel` },
+    { item: "Prestação de Contas – Operacional", formato: "PDF, com fotos", url: `${LIVE}Empreendimento/Emp_PrestacaoContasOperacional.aspx`, preencher: `de ${op.inicio} a ${op.fim}, marcar fotos — vai na seção Evidências` },
+  ];
+};
+
+export const ImportarArquivos = ({ dados, contexto, nomeEmpreendimento, onAplicar, onFechar }: Props) => {
   const [lendo, setLendo] = useState(false);
   const [leituras, setLeituras] = useState<ResultadoLeitura[]>([]);
   const [previa, setPrevia] = useState<ResultadoArquivos | null>(null);
@@ -99,18 +123,29 @@ export const ImportarArquivos = ({ dados, contexto, onAplicar, onFechar }: Props
             />
           </label>
 
-          {!leituras.length ? (
-            <section className="rounded-lg bg-surface-soft p-4">
-              <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-primary">Onde gerar cada um no LiveFacilities</h3>
-              <ul className="space-y-1.5 text-sm">
-                {COMO_GERAR.map((c) => (
-                  <li key={c.item}>
-                    <strong>{c.item}:</strong> <span className="text-muted-foreground">{c.caminho}</span>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ) : null}
+          <section className="rounded-lg bg-surface-soft p-4">
+            <h3 className="text-xs font-bold uppercase tracking-wide text-primary">Pegar no LiveFacilities</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Antes de abrir, selecione no topo do Live o prédio{" "}
+              <strong className="text-foreground">
+                {contexto.cdCondominio ? `${contexto.cdCondominio}${nomeEmpreendimento ? ` – ${nomeEmpreendimento}` : ""}` : nomeEmpreendimento ?? "deste RGM"}
+              </strong>
+              . O Live não deixa abrir a tela já no prédio e no mês — preencha o período indicado e clique em Abrir.
+            </p>
+            <ul className="mt-3 divide-y divide-border rounded-md border border-border bg-card text-sm">
+              {telasDoLive(contexto).map((t) => (
+                <li key={t.item} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2">
+                  <span className="min-w-0 flex-1">
+                    <strong>{t.item}</strong> <span className="text-xs text-muted-foreground">({t.formato})</span>
+                    <span className="block text-xs text-muted-foreground">{t.preencher}</span>
+                  </span>
+                  <a href={t.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline">
+                    Abrir no Live <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </section>
 
           {leituras.length ? (
             <section>
