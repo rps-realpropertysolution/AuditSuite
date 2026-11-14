@@ -49,3 +49,4 @@ supabase/.temp/
 RGM-relatorios-*/
 *.xlsx
 Arquivos do sistema/
+docs/conversa-livefacilities.md

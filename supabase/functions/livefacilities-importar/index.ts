@@ -18,6 +18,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { criarClienteLF } from "../_shared/livefacilities/cliente.ts";
 import { importarCompetencia } from "../_shared/livefacilities/importar.ts";
 import { descobrirEmpreendimentos } from "../_shared/livefacilities/empreendimentos.ts";
+import { buscarFaturas } from "../_shared/livefacilities/faturas.ts";
 
 declare const Deno: {
   env: { get(nome: string): string | undefined };
@@ -93,6 +94,11 @@ Deno.serve(async (req) => {
 
     if (!emp?.lf_cd_condominio) {
       return erro(422, `Cadastre o código do condomínio do LiveFacilities em "${emp?.nome ?? "Empreendimento"}".`);
+    }
+
+    // Contas de água e energia do mês (anexos dos pagamentos) — o leitor roda no navegador.
+    if (corpo.acao === "faturas") {
+      return resposta(200, await buscarFaturas(cliente, emp.lf_cd_condominio, relatorio.competencia));
     }
 
     const resultado = await importarCompetencia(cliente, {

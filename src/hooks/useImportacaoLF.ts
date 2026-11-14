@@ -1,6 +1,7 @@
 import { useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { ResultadoImportacaoLF } from "../../supabase/functions/_shared/livefacilities/tipos.ts";
+import type { FaturasDoMes } from "../../supabase/functions/_shared/livefacilities/faturas.ts";
 
 /**
  * Chama a Edge Function `livefacilities-importar`. A senha do LiveFacilities
@@ -63,3 +64,13 @@ export const useImportacaoLF = () =>
   useMutation({
     mutationFn: buscarImportacaoLF,
   });
+
+/** Contas de água e energia do mês (anexos dos pagamentos + custo por conta contábil). */
+export const buscarFaturasLF = async (relatorioId: string): Promise<FaturasDoMes> => {
+  const { data, error } = await supabase.functions.invoke<FaturasDoMes & { erro?: string }>("livefacilities-importar", {
+    body: { relatorioId, acao: "faturas" },
+  });
+  if (error) return lerErro(error);
+  if (!data || data.erro) throw new Error(data?.erro ?? "Resposta vazia das contas.");
+  return data;
+};

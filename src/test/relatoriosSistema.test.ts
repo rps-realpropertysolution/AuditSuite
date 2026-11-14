@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { interpretarArquivo, numeroBR, rotuloEValores } from "@/lib/relatoriosSistema/interpretar";
-import { aplicarArquivos } from "@/lib/relatoriosSistema/aplicar";
+import { aplicarArquivos, aplicarCustos } from "@/lib/relatoriosSistema/aplicar";
 import { linhasDoPdf } from "@/lib/relatoriosSistema/linhas";
 import { herdarDoMesAnterior, relatorioEmBranco } from "@/lib/defaults";
 import { saldoTotal } from "@/lib/metrics";
@@ -193,5 +193,54 @@ describe("relatórios do sistema — aplicação no RGM", () => {
     const { dados } = aplicarArquivos(base, [{ nome: "pedidos.xlsx", relatorio: pedidos }], ctx);
     expect(dados.suprimentos.pedidos.map((p) => p.pedido)).toEqual(["20", "10"]);
     expect(dados.suprimentos.pedidos[0]).toMatchObject({ status: "Em orçamento", grupo: "Manutenção predial", prazo: "2026-10-20" });
+  });
+});
+
+describe("contas Copel e Sanepar e custo total da concessionária", () => {
+  it("Copel: consumo e valor do mês e do mês anterior pelo histórico de 12 meses", () => {
+    const r = relatorio(
+      interpretarArquivo(
+        pdf("copel.pdf", [
+          "Copel Distribuição S.A.",
+          "Nome: EDIFICIO EXEMPLO 31/08/2026 30/09/2026 29 01/11/2026",
+          "ENERGIA ELET CONSUMO PTA kWh 1.000 1,0 1.000,00",
+          "ENERGIA ELET CONSUMO F PTA kWh 9.000 0,2 1.800,00",
+          "10/2026 12.000,00 12/11/2026 1000 9000 50 80 0 100 0 105",
+          "09/2026 11.500,00 12/10/2026 09/10/2026 900 8500 48 79 0 100 0 105",
+        ]),
+      ),
+    );
+    expect(r).toMatchObject({ tipo: "fatura_energia", concessionaria: "Copel", competencia: "2026-10", consumo: 10000, consumoAnterior: 9400, valor: 12000, valorAnterior: 11500 });
+  });
+
+  it("Sanepar: leitura do mês e o último mês do histórico como anterior", () => {
+    const r = relatorio(
+      interpretarArquivo(
+        pdf("sanepar.pdf", [
+          "CONTA",
+          "ED EXEMPLO 1234.5678",
+          "11/25 12/25 01/26 02/26 03/26 04/26 05/26 06/26 07/26 08/26 09/26",
+          "100 110 120 130 140 150 160 170 180 190 200",
+          "30 23/10/2026 1000 1210 210 10/2026",
+          "24/11/2026 2.500,00 2.100,00 0,00 4.600,00",
+          "ACESSE O SITE DA SANEPAR",
+        ]),
+      ),
+    );
+    expect(r).toMatchObject({ tipo: "fatura_agua", concessionaria: "Sanepar", competencia: "2026-10", consumo: 210, consumoAnterior: 200, valor: 4600 });
+  });
+
+  it("PDF sem texto é conta escaneada — recusado com o motivo", () => {
+    const r = interpretarArquivo({ nome: "x.pdf", tipo: "pdf", paginas: [], totalPaginas: 1 });
+    expect("erro" in r && r.erro).toMatch(/escaneada/);
+  });
+
+  it("custo total do mês (distribuidora + mercado livre) vira o valor da energia", () => {
+    const { dados, preenchido } = aplicarCustos(relatorioEmBranco(), {
+      energia: { total: 50_000, itens: [{ fornecedor: "DISTRIBUIDORA X", valor: 25_000 }, { fornecedor: "COMERCIALIZADORA Y", valor: 25_000 }] },
+      agua: null,
+    });
+    expect(dados.utilidades.linhas.find((u) => u.utilidade === "Energia")?.fatura).toBe(50_000);
+    expect(preenchido).toHaveLength(1);
   });
 });
