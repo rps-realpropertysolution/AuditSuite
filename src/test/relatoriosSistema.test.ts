@@ -244,3 +244,46 @@ describe("contas Copel e Sanepar e custo total da concessionária", () => {
     expect(preenchido).toHaveLength(1);
   });
 });
+
+describe(".xls do LiveFacilities (HTML) e PDF que é imagem", () => {
+  it("lê a tabela HTML em UTF-16 com BOM", async () => {
+    const { decodificarTexto, linhasDeHtml } = await import("@/lib/relatoriosSistema/htmlTabela");
+    const html = "<table><tr><td>Pedido</td><td>Status</td></tr><tr><td>10</td><td>APROVADO&nbsp;</td></tr></table>";
+    const corpo = new Uint8Array(html.length * 2);
+    for (let i = 0; i < html.length; i++) corpo[i * 2] = html.charCodeAt(i);
+    const bytes = new Uint8Array([0xff, 0xfe, ...corpo]);
+    expect(linhasDeHtml(decodificarTexto(bytes))).toEqual([["Pedido", "Status"], ["10", "APROVADO"]]);
+  });
+
+  it("Previsto x Realizado analítico em planilha: só os grupos entram, contas ficam de fora", () => {
+    const r = relatorio(
+      interpretarArquivo({
+        nome: "prev.xls",
+        tipo: "planilha",
+        linhas: [
+          ["RECEITA", "08/2026"],
+          ["", "Previsto", "Realizado", "Diferença", "% Variação"],
+          ["ORDINÁRIA", "0,00", "100,00", "100,00", "100"],
+          ["477 - RECEBIMENTOS DO PERÍODO", "0,00", "100,00", "100,00", "100"],
+          ["DESPESA", "08/2026"],
+          ["", "Previsto", "Realizado", "Diferença", "% Variação"],
+          ["ORDINÁRIA", "50,00", "60,00", "-10,00", "20"],
+          ["MANUTENÇÃO PREDIAL", "50,00", "60,00", "-10,00", "20"],
+          ["502 - CONTRATO DE MANUTENÇÃO", "50,00", "60,00", "-10,00", "20"],
+          ["FUNDO DE MELHORIAS", "0,00", "5,00", "-5,00", "100"],
+          ["DESPESA NO PERIODO", "0,00", "5,00", "-5,00", "100"],
+        ],
+      }),
+    );
+    if (r.tipo !== "previsto_realizado") throw new Error(r.tipo);
+    expect(r.competencia).toBe("2026-08");
+    expect(r.despesas.map((x) => `${x.fundo}|${x.grupo}`)).toEqual(["Ordinária|Manutenção predial", "Fundo de melhorias|Despesa no periodo"]);
+  });
+
+  it("PDF impresso como imagem: recusa explicando que é para exportar em Excel", () => {
+    const r = interpretarArquivo(
+      pdf("x.pdf", ["RELATÓRIO DE PREVISTO X REALIZADO | 1006 - CJB | PÁGINA 1 DE 3"]),
+    );
+    expect("erro" in r && r.erro).toMatch(/imagem/);
+  });
+});
