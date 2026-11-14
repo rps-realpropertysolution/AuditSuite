@@ -66,6 +66,7 @@ import {
   Ban,
   Gavel,
   Gem,
+  ShoppingCart,
 } from "lucide-react";
 import {
   competenciaFinanceira,
@@ -167,6 +168,7 @@ const ORDEM: { id: string; capitulo: CapituloId | null }[] = [
   { id: "operacao", capitulo: "04" },
   { id: "os", capitulo: "04" },
   { id: "fornecedores", capitulo: "04" },
+  { id: "suprimentos", capitulo: "04" },
   { id: "fotos", capitulo: "04" },
   { id: "utilidades", capitulo: "05" },
   { id: "capex", capitulo: "06" },
@@ -245,8 +247,11 @@ export const montarSlides = (ctx: ContextoSlides): SlideMontado[] => {
   /** Linha "Fontes:" honesta: diz o que veio do sistema e o que foi lançado. */
   const fontes = (secoes: string[], extra?: string) => {
     const doSistema = secoes.some((s) => importado.has(s));
+    const arquivos = d.arquivosImportados.filter((a) => a.secoes.some((s) => secoes.includes(s))).map((a) => a.titulo);
     const partes = [
-      doSistema ? `LiveFacilities (RP Smart), dados importados em ${dataImport}` : "lançamentos do gestor no RGM",
+      doSistema ? `LiveFacilities (RP Smart), dados importados em ${dataImport}` : null,
+      arquivos.length ? `relatórios do sistema: ${arquivos.join(", ")}` : null,
+      !doSistema && !arquivos.length ? "lançamentos do gestor no RGM" : null,
       extra,
     ].filter(Boolean);
     return `${partes.join("; ")}.`;
@@ -975,7 +980,7 @@ export const montarSlides = (ctx: ContextoSlides): SlideMontado[] => {
     add(
       "utilidades",
       "Utilidades",
-      <SlidePadrao secao="Gestão de utilidades" icone={Zap} fontes={fontes([], "faturas das concessionárias")}>
+      <SlidePadrao secao="Gestão de utilidades" icone={Zap} fontes={fontes(["utilidades"], "faturas das concessionárias")}>
         <div style={{ display: "flex", gap: 22 }}>
           <div style={{ width: 560, display: "flex", flexDirection: "column", gap: 16 }}>
             {utilidades.slice(0, 3).map((u) => {
@@ -1302,6 +1307,52 @@ export const montarSlides = (ctx: ContextoSlides): SlideMontado[] => {
           ]}
         />
         {d.fornecedores.comentario.trim() ? <CaixaLeitura topicos={comentarioParaTopicos(d.fornecedores.comentario)} style={{ marginTop: 16 }} tamanho={12} /> : null}
+      </SlidePadrao>,
+    );
+  }
+
+  /* ------------------------------------------------ 15b. suprimentos */
+  if (d.suprimentos.pedidos.length) {
+    const pedidos = d.suprimentos.pedidos;
+    const total = pedidos.reduce((s, p) => s + p.valor, 0);
+    const finalizados = pedidos.filter((p) => /finaliz|entreg|conclu/i.test(p.status)).length;
+    const emOrcamento = pedidos.filter((p) => /or[cç]amento|cota/i.test(p.status)).length;
+    // pedido em curso com prazo vencido no fim do mês do RGM
+    const fimMes = new Date(Number(competencia.slice(0, 4)), Number(competencia.slice(5, 7)), 0).toISOString().slice(0, 10);
+    const atrasados = pedidos.filter((p) => p.prazo && p.prazo < fimMes && !/finaliz|entreg|conclu|cancel/i.test(p.status)).length;
+    const ordenados = [...pedidos].sort((a, b) => b.valor - a.valor);
+    add(
+      "suprimentos",
+      "Suprimentos e compras",
+      <SlidePadrao secao={`Suprimentos e compras · ${mes}`} icone={ShoppingCart} fontes={fontes(["suprimentos"], "lista de pedidos de compra do mês")}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
+          <CartaoKpi icone={ShoppingCart} rotulo="Pedidos no mês" valor={formatarNumero(pedidos.length)} corValor={COR.navy} altura={88} />
+          <CartaoKpi icone={CircleDollarSign} rotulo="Valor aprovado" valor={formatarMoedaMil(total)} corValor={COR.azul} altura={88} />
+          <CartaoKpi icone={BadgeCheck} rotulo="Finalizados" valor={formatarNumero(finalizados)} corValor={COR.navy} altura={88} />
+          <CartaoKpi
+            icone={AlertTriangle}
+            rotulo="Em curso com prazo vencido"
+            valor={formatarNumero(atrasados)}
+            apoio={emOrcamento ? `${emOrcamento} ainda em orçamento` : undefined}
+            semaforo={atrasados ? "amarelo" : "verde"}
+            altura={88}
+          />
+        </div>
+        <div style={{ marginTop: 18 }}>
+          <TabelaSlide
+            linhas={ordenados}
+            maxLinhas={8}
+            colunas={[
+              { titulo: "Pedido", largura: "9%", render: (p) => p.pedido },
+              { titulo: "Categoria", largura: "22%", render: (p) => p.categoria || "—" },
+              { titulo: "Grupo contábil", largura: "24%", render: (p) => p.grupo || "—" },
+              { titulo: "Status", render: (p) => p.status || "—" },
+              { titulo: "Prazo", alinhar: "center", render: (p) => (p.prazo ? formatarData(p.prazo) : "—") },
+              { titulo: "Valor aprovado", alinhar: "right", render: (p) => (p.valor ? formatarMoeda(p.valor) : "—") },
+            ]}
+          />
+        </div>
+        {d.suprimentos.comentario.trim() ? <CaixaLeitura topicos={comentarioParaTopicos(d.suprimentos.comentario)} style={{ marginTop: 14 }} tamanho={12} /> : null}
       </SlidePadrao>,
     );
   }

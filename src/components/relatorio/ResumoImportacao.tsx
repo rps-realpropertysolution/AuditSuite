@@ -1,6 +1,6 @@
-import { CheckCircle2, CircleAlert, ListTodo, X } from "lucide-react";
+import { CheckCircle2, CircleAlert, FileUp, ListTodo, X } from "lucide-react";
 import type { ConsultaLF } from "../../../supabase/functions/_shared/livefacilities/tipos.ts";
-import { PENDENCIAS_MANUAIS, type ResultadoMescla } from "@/lib/importacao";
+import { PELOS_ARQUIVOS, PENDENCIAS_MANUAIS, type ResultadoMescla } from "@/lib/importacao";
 
 export interface EstadoResumoImportacao extends Omit<ResultadoMescla, "dados"> {
   consultas: ConsultaLF[];
@@ -66,6 +66,20 @@ export const ResumoImportacao = ({ estado, onFechar }: { estado: EstadoResumoImp
               </ul>
             </section>
           ) : null}
+
+          <section className="rounded-lg border border-primary/25 p-4">
+            <h3 className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-primary">
+              <FileUp className="h-4 w-4" /> Próximo passo: importar os arquivos do sistema
+            </h3>
+            <ul className="grid gap-1 text-sm">
+              {PELOS_ARQUIVOS.map((p) => (
+                <li key={p} className="flex gap-2">
+                  <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+                  {p}
+                </li>
+              ))}
+            </ul>
+          </section>
 
           <section className="rounded-lg bg-surface-soft p-4">
             <h3 className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-primary">

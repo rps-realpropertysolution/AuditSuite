@@ -311,7 +311,7 @@ describe("aplicarImportacao — mescla sem apagar o que é do gestor", () => {
     ];
     const { dados, avisos } = aplicarImportacao(base, resultado({ financeiro: { saldoAnterior: 150, creditos: 10, debitos: 5, saldoAtual: 155 } }));
     expect(dados.financeiro.fundos).toBe(base.financeiro.fundos);
-    expect(avisos[0]).toMatch(/abertos à mão/);
+    expect(avisos[0]).toMatch(/abertos por fundo/);
   });
 
   it("preserva orçado e justificativa do grupo ao trazer o realizado", () => {
@@ -387,7 +387,7 @@ describe("formato real da API (sondado em 13/11/2026, valores fictícios)", () =
     ]);
   });
 
-  it("mescla por fundo: primeira vez cria 'saldo a distribuir'; depois encadeia por fundo", () => {
+  it("fundos pela API: só o consolidado; abertura provisória antiga vira consolidado; abertura por fundo é preservada", () => {
     const financeiro = {
       saldoAnterior: 1000,
       creditos: 300,
@@ -401,24 +401,28 @@ describe("formato real da API (sondado em 13/11/2026, valores fictícios)", () =
     const res = (dados: ReturnType<typeof relatorioEmBranco>) =>
       aplicarImportacao(dados, { dados: { periodo: OUT, periodoFinanceiro: SET, financeiro }, consultas: [], avisos: [] });
 
+    // relatório novo: uma linha consolidada que confere com o sistema
     const primeira = res(relatorioEmBranco());
-    const fundos = primeira.dados.financeiro.fundos;
-    expect(fundos.map((f) => f.fundo)).toEqual(["Ordinária", "Fundo de reserva", "Saldo anterior a distribuir"]);
+    expect(primeira.dados.financeiro.fundos.map((f) => f.fundo)).toEqual(["Consolidado"]);
     expect(saldoTotal(primeira.dados)).toBeCloseTo(1050, 2);
-    expect(primeira.avisos.some((a) => a.includes("Reparta entre os fundos"))).toBe(true);
 
-    // o gestor repartiu: 800 ordinária, 200 reserva — no mês seguinte encadeia sem aviso
-    const repartido = relatorioEmBranco();
-    repartido.financeiro.fundos = [
+    // abertura provisória de importação antiga ("Outros lançamentos" / "a distribuir") é descartada
+    const provisorio = relatorioEmBranco();
+    provisorio.financeiro.fundos = [
+      { id: "x", fundo: "Outros lançamentos", anterior: 2000, creditos: 300, debitos: 0 },
+      { id: "o", fundo: "Ordinária", anterior: -1000, creditos: 0, debitos: 250 },
+    ];
+    expect(res(provisorio).dados.financeiro.fundos.map((f) => f.fundo)).toEqual(["Consolidado"]);
+
+    // fundos abertos pela Posição Financeira não são tocados — o aviso pede o arquivo do mês
+    const porFundo = relatorioEmBranco();
+    porFundo.financeiro.fundos = [
       { id: "o", fundo: "Ordinária", anterior: 800, creditos: 0, debitos: 0 },
       { id: "r", fundo: "Fundo de reserva", anterior: 200, creditos: 0, debitos: 0 },
     ];
-    const seguinte = res(repartido);
-    expect(seguinte.dados.financeiro.fundos).toEqual([
-      { id: "o", fundo: "Ordinária", anterior: 800, creditos: 200, debitos: 150 },
-      { id: "r", fundo: "Fundo de reserva", anterior: 200, creditos: 100, debitos: 100 },
-    ]);
-    expect(seguinte.avisos).toEqual([]);
+    const seguinte = res(porFundo);
+    expect(seguinte.dados.financeiro.fundos).toEqual(porFundo.financeiro.fundos);
+    expect(seguinte.avisos.some((a) => a.includes("Posição Financeira"))).toBe(true);
   });
 
   it("OS: filtra pelo prédio (a API às vezes ignora o filtro) e tira os 'somente registro'", () => {

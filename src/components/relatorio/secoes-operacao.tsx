@@ -1,8 +1,9 @@
 import { useRef, useState } from "react";
-import { Camera, Droplets, ImagePlus, Trash2, Truck, Wrench, X } from "lucide-react";
+import { Camera, Droplets, ImagePlus, ShoppingCart, Trash2, Truck, Wrench, X } from "lucide-react";
 import {
   BadgeSemaforo,
   Campo,
+  CampoData,
   CampoMoeda,
   CampoNumero,
   CampoPercentual,
@@ -10,9 +11,10 @@ import {
   CampoTexto,
 } from "@/components/campos";
 import { ComentarioGestor, Secao, TabelaEditavel, type Coluna } from "./blocos";
+import { FotosDoSistema } from "./FotosDoSistema";
 import { useUploadFotos, useUrlsAssinadas } from "@/hooks/useFotos";
 import { novoId } from "@/lib/defaults";
-import { formatarNumero, formatarVariacao } from "@/lib/format";
+import { formatarMoeda, formatarNumero, formatarVariacao } from "@/lib/format";
 import {
   consumoMedioDiario,
   percentualOSCanceladas,
@@ -32,6 +34,7 @@ import type {
   LinhaDisciplina,
   LinhaFornecedor,
   LinhaOcorrencia,
+  LinhaPedido,
   LinhaUtilidade,
   Semaforo,
 } from "@/lib/types";
@@ -464,6 +467,85 @@ export const SecaoFornecedores = ({ dados, atualizar, somenteLeitura }: PropsSec
 };
 
 /* ========================================================================== */
+/* Suprimentos — pedidos de compra                                            */
+/* ========================================================================== */
+
+export const SecaoSuprimentos = ({ dados, atualizar, somenteLeitura }: PropsSecao) => {
+  const set = (patch: Partial<DadosRelatorio["suprimentos"]>) =>
+    atualizar("suprimentos", { ...dados.suprimentos, ...patch });
+  const total = dados.suprimentos.pedidos.reduce((s, p) => s + p.valor, 0);
+
+  const colunas: Coluna<LinhaPedido>[] = [
+    {
+      chave: "pedido",
+      titulo: "Pedido",
+      largura: "w-24",
+      render: (l, up) => <CampoTexto valor={l.pedido} desabilitado={somenteLeitura} onChange={(v) => up({ pedido: v })} />,
+    },
+    {
+      chave: "categoria",
+      titulo: "Categoria",
+      largura: "min-w-[150px]",
+      render: (l, up) => <CampoTexto valor={l.categoria} desabilitado={somenteLeitura} onChange={(v) => up({ categoria: v })} />,
+    },
+    {
+      chave: "grupo",
+      titulo: "Grupo contábil",
+      largura: "min-w-[160px]",
+      render: (l, up) => <CampoTexto valor={l.grupo} desabilitado={somenteLeitura} onChange={(v) => up({ grupo: v })} />,
+    },
+    {
+      chave: "status",
+      titulo: "Status",
+      largura: "w-36",
+      render: (l, up) => (
+        <CampoTexto valor={l.status} desabilitado={somenteLeitura} onChange={(v) => up({ status: v })} placeholder="Aprovado" />
+      ),
+    },
+    {
+      chave: "valor",
+      titulo: "Valor aprovado",
+      largura: "w-36",
+      alinhar: "direita",
+      render: (l, up) => <CampoMoeda valor={l.valor} desabilitado={somenteLeitura} onChange={(v) => up({ valor: v })} />,
+    },
+    {
+      chave: "prazo",
+      titulo: "Prazo",
+      largura: "w-40",
+      render: (l, up) => <CampoData valor={l.prazo} desabilitado={somenteLeitura} onChange={(v) => up({ prazo: v })} />,
+    },
+  ];
+
+  return (
+    <Secao
+      id="suprimentos"
+      titulo="Suprimentos e compras"
+      icone={<ShoppingCart className="h-5 w-5" />}
+      descricao={
+        dados.suprimentos.pedidos.length
+          ? `${dados.suprimentos.pedidos.length} pedido(s) · ${formatarMoeda(total)} aprovados. Vem da Lista de Pedidos do LiveFacilities (Importar arquivos).`
+          : "Pedidos de compra do mês: importe a Lista de Pedidos do LiveFacilities em Excel (Importar arquivos)."
+      }
+    >
+      <TabelaEditavel
+        linhas={dados.suprimentos.pedidos}
+        colunas={colunas}
+        somenteLeitura={somenteLeitura}
+        onChange={(pedidos) => set({ pedidos })}
+        novaLinha={() => ({ id: novoId(), pedido: "", categoria: "", grupo: "", status: "Aprovado", valor: 0, solicitacao: "", prazo: "" })}
+        rotuloAdicionar="Adicionar pedido"
+        vazio={{
+          titulo: "Nenhum pedido de compra",
+          descricao: "Exporte a Lista de Pedidos (Compras) em Excel no LiveFacilities e importe em “Importar arquivos”.",
+        }}
+      />
+      <ComentarioGestor valor={dados.suprimentos.comentario} somenteLeitura={somenteLeitura} onChange={(v) => set({ comentario: v })} />
+    </Secao>
+  );
+};
+
+/* ========================================================================== */
 /* Utilidades                                                                 */
 /* ========================================================================== */
 
@@ -717,6 +799,15 @@ export const SecaoFotos = ({
               }}
             />
           </label>
+
+          <FotosDoSistema
+            jaTem={dados.fotos.length}
+            onEscolher={async (arquivos, meta) => {
+              const { fotos, erros: novosErros } = await enviar(arquivos, meta);
+              if (fotos.length) atualizar("fotos", [...dados.fotos, ...fotos]);
+              setErros(novosErros);
+            }}
+          />
 
           {enviando ? (
             <p className="mt-2 text-sm font-medium text-primary">

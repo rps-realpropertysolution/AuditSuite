@@ -242,6 +242,20 @@ export interface LinhaDisciplina {
   quantidade: number;
 }
 
+/** Slide SUPRIMENTOS — pedidos de compra do mês (Lista de Pedidos do LiveFacilities). */
+export interface LinhaPedido {
+  id: string;
+  pedido: string;
+  categoria: string;
+  /** Grupo contábil (nível 2 da conta). */
+  grupo: string;
+  /** Como vem do sistema: Aprovado, Finalizado, Em orçamento… */
+  status: string;
+  valor: number;
+  solicitacao: string; // YYYY-MM-DD
+  prazo: string; // YYYY-MM-DD
+}
+
 /** Slide CAPEX E MELHORIAS */
 export interface LinhaCapex {
   id: string;
@@ -369,6 +383,7 @@ export interface DadosRelatorio {
   };
 
   utilidades: { linhas: LinhaUtilidade[]; comentario: string };
+  suprimentos: { pedidos: LinhaPedido[]; comentario: string };
   capex: { linhas: LinhaCapex[]; comentario: string };
   valorGerado: { linhas: LinhaValorGerado[] };
   riscos: { linhas: LinhaRisco[]; comentario: string };
@@ -379,6 +394,21 @@ export interface DadosRelatorio {
 
   /** Última importação do LiveFacilities, se houve. */
   importacao: RegistroImportacao | null;
+
+  /** Relatórios exportados do sistema (PDF/Excel) que o gestor importou. */
+  arquivosImportados: RegistroArquivo[];
+}
+
+/** Um relatório do sistema importado por arquivo — vira a linha "Fontes:". */
+export interface RegistroArquivo {
+  nome: string;
+  /** "Previsto x Realizado", "Posição Financeira"… */
+  titulo: string;
+  /** YYYY-MM do conteúdo do arquivo. */
+  competencia: string;
+  em: string; // ISO
+  /** Mesmas chaves de RegistroImportacao.secoes ("financeiro", "utilidades"…). */
+  secoes: string[];
 }
 
 export const SECOES = [
@@ -390,6 +420,7 @@ export const SECOES = [
   "documentos",
   "juridico",
   "utilidades",
+  "suprimentos",
   "capex",
   "valorGerado",
   "riscos",
