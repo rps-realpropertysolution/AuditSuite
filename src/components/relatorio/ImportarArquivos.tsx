@@ -60,12 +60,14 @@ export const ImportarArquivos = ({ dados, contexto, nomeEmpreendimento, onAplica
   // PDF da Prestação de Contas Operacional: as fotos vão para o seletor da seção Evidências
   const [prestacoes, setPrestacoes] = useState<Record<string, File>>({});
 
-  const ler = async (lista: FileList | null) => {
-    if (!lista?.length) return;
+  // Recebe um ARRAY: o FileList do <input> é "vivo" — limpar o campo (para poder
+  // escolher de novo) esvaziava a lista antes da leitura começar.
+  const ler = async (lista: File[]) => {
+    if (!lista.length) return;
     setLendo(true);
     const { lerArquivo } = await import("@/lib/relatoriosSistema/ler");
     const novas: ResultadoLeitura[] = [];
-    for (const arquivo of Array.from(lista)) {
+    for (const arquivo of lista) {
       try {
         const lido = interpretarArquivo(await lerArquivo(arquivo));
         if ("relatorio" in lido && lido.relatorio.tipo === "informativo" && /presta/i.test(lido.relatorio.titulo)) {
@@ -114,7 +116,7 @@ export const ImportarArquivos = ({ dados, contexto, nomeEmpreendimento, onAplica
             onDragOver={(e) => e.preventDefault()}
             onDrop={(e) => {
               e.preventDefault();
-              void ler(e.dataTransfer.files);
+              void ler(Array.from(e.dataTransfer.files));
             }}
             className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-primary/40 bg-surface-soft/60 px-6 py-8 text-center transition hover:border-primary hover:bg-surface-soft"
           >
@@ -128,7 +130,7 @@ export const ImportarArquivos = ({ dados, contexto, nomeEmpreendimento, onAplica
               className="sr-only"
               disabled={lendo}
               onChange={(e) => {
-                void ler(e.target.files);
+                void ler(Array.from(e.target.files ?? []));
                 e.target.value = "";
               }}
             />

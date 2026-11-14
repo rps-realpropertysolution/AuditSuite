@@ -58,9 +58,16 @@ const TesteChecklist = () => {
     return (
       <ImportarArquivos
         dados={dados}
-        contexto={{ competencia: "2026-10-01", competenciaFinanceira: "2026-09-01", cdCondominio: "1003" }}
-        nomeEmpreendimento="P500"
-        onAplicar={() => undefined}
+        contexto={{
+          competencia: p.get("comp") ?? "2026-10-01",
+          competenciaFinanceira: p.get("fin") ?? "2026-09-01",
+          cdCondominio: p.get("cd") ?? "1003",
+        }}
+        nomeEmpreendimento={p.get("nome") ?? "P500"}
+        onAplicar={(novos) => {
+          (window as unknown as { aplicado: unknown }).aplicado = { arquivos: novos.arquivosImportados.length, pedidos: novos.suprimentos.pedidos.length };
+          document.title = "APLICADO";
+        }}
         onFechar={() => undefined}
       />
     );
