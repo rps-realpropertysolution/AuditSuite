@@ -120,19 +120,23 @@ const aplicarPosicao = (d: DadosRelatorio, r: PosicaoFinanceira, avisos: string[
     );
   }
 
+  const saldo = (lista: LinhaFundo[]) => lista.reduce((s, f) => s + f.anterior + f.creditos - f.debitos, 0);
   const anteriorAntes = d.financeiro.fundos.reduce((s, f) => s + f.anterior, 0);
   const anteriorAgora = fundos.reduce((s, f) => s + f.anterior, 0);
   if (anteriorAntes && Math.abs(anteriorAntes - anteriorAgora) > 1) {
+    const finalConfere = Math.abs(saldo(d.financeiro.fundos) - saldo(fundos)) <= 1;
     avisos.push(
-      `O saldo anterior mudou de ${formatarMoeda(anteriorAntes)} para ${formatarMoeda(anteriorAgora)} com a Posição Financeira. ` +
-        `Confira se o arquivo é do mês certo.`,
+      finalConfere
+        ? `O saldo final confere com o que estava no RGM (${formatarMoeda(saldo(fundos))}); o saldo anterior difere em ` +
+            `${formatarMoeda(anteriorAntes - anteriorAgora)} — reclassificação entre contas no fluxo de caixa. Vale o da Posição Financeira.`
+        : `O saldo anterior mudou de ${formatarMoeda(anteriorAntes)} para ${formatarMoeda(anteriorAgora)} com a Posição Financeira. ` +
+            `Confira se o arquivo é do mês certo.`,
     );
   }
 
-  const saldo = fundos.reduce((s, f) => s + f.anterior + f.creditos - f.debitos, 0);
   return {
     dados: { ...d, financeiro: { ...d.financeiro, fundos } },
-    item: { secao: "financeiro", rotulo: "Saldo por fundo", detalhe: `${fundos.length} fundos · saldo final ${formatarMoeda(saldo)}` },
+    item: { secao: "financeiro", rotulo: "Saldo por fundo", detalhe: `${fundos.length} fundos · saldo final ${formatarMoeda(saldo(fundos))}` },
     secoes: ["financeiro"],
   };
 };

@@ -48,3 +48,4 @@ supabase/.temp/
 # Relatórios exportados do LiveFacilities (dados de clientes)
 RGM-relatorios-*/
 *.xlsx
+Arquivos do sistema/
