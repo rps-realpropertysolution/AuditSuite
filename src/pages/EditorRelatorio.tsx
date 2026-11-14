@@ -43,7 +43,8 @@ import {
   SecaoRiscos,
 } from "@/components/relatorio/secoes-governanca";
 import { ResumoImportacao, type EstadoResumoImportacao } from "@/components/relatorio/ResumoImportacao";
-import { useImportacaoLF } from "@/hooks/useImportacaoLF";
+import { buscarFaturasLF, useImportacaoLF } from "@/hooks/useImportacaoLF";
+import { completarComFaturas } from "@/lib/relatoriosSistema/faturasDoSistema";
 import { aplicarImportacao } from "@/lib/importacao";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAutosave } from "@/hooks/useAutosave";
@@ -163,8 +164,21 @@ const EditorRelatorio = () => {
     try {
       const resultado = await importar.mutateAsync(id);
       const mescla = aplicarImportacao(dados, resultado);
-      setDados(mescla.dados);
-      setResumoImportacao({ ...mescla, consultas: resultado.consultas });
+      let final = mescla;
+      // Contas de água e energia do mês: anexos dos pagamentos + custo total. Se falhar, segue sem.
+      try {
+        const faturas = await buscarFaturasLF(id);
+        const contas = await completarComFaturas(mescla.dados, faturas, {
+          competencia: relatorio!.competencia,
+          competenciaFinanceira: competenciaFinanceira({ competencia: relatorio!.competencia, dados: mescla.dados }),
+          cdCondominio: relatorio?.empreendimento?.lf_cd_condominio ?? null,
+        });
+        final = { dados: contas.dados, preenchido: [...mescla.preenchido, ...contas.preenchido], avisos: [...mescla.avisos, ...contas.avisos] };
+      } catch (e) {
+        final = { ...mescla, avisos: [...mescla.avisos, `Contas de água e energia: ${e instanceof Error ? e.message : "não foi possível buscar"}.`] };
+      }
+      setDados(final.dados);
+      setResumoImportacao({ ...final, consultas: resultado.consultas });
     } catch (e) {
       setErroImportacao(e instanceof Error ? e.message : "Falha ao importar do LiveFacilities.");
     }

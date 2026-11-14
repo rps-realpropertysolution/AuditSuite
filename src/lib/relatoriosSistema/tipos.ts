@@ -57,6 +57,8 @@ export interface FaturaConcessionaria {
   ponta: number;
   foraPonta: number;
   valor: number;
+  /** Valor da fatura do mês anterior, quando a conta traz o histórico (Copel). */
+  valorAnterior?: number | null;
   detalhamento: string;
 }
 

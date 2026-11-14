@@ -34,7 +34,12 @@ export const ROTAS_GET = new Set([
   "/Documento/ListaDocumentoEmpreendimento",
   "/SisproFuncionario/Lista",
   "/SisproFerias/Agenda",
+  /** Anexo de um pagamento (fatura digitalizada). URL vem pronta no ConsultaPagamento. */
+  "/ContasPagar/arquivo",
 ]);
+
+/** Maior anexo que o RGM baixa (uma fatura tem centenas de KB). */
+export const TAMANHO_MAX_ANEXO = 8 * 1024 * 1024;
 
 /** POST que são consultas (corpo = filtro). Nenhum grava. */
 export const ROTAS_POST_CONSULTA = new Set([
@@ -69,6 +74,11 @@ export type Parametros = Record<string, string | number | boolean | null | undef
 export interface ClienteLF {
   get<T>(rota: string, parametros?: Parametros): Promise<T>;
   consultar<T>(rota: string, corpo: unknown): Promise<T>;
+  /**
+   * Baixa um anexo pela URL que a própria API devolveu (ex.: listaContasPagarArquivo).
+   * Só aceita URL do mesmo servidor da API e rota da allowlist; devolve os bytes.
+   */
+  baixar(url: string): Promise<{ bytes: Uint8Array; tipo: string }>;
   /** Percorre PageIndex/PageSize até acabar. Junta `data` de todas as páginas. */
   paginar<T>(
     rota: string,
@@ -206,6 +216,28 @@ export const criarClienteLF = (cfg: ConfigClienteLF): ClienteLF => {
     return requisitar<T>("POST", rota, `${base}${rota}`, corpo);
   };
 
+  const baixar: ClienteLF["baixar"] = async (url) => {
+    const alvo = new URL(url);
+    const raiz = new URL(base);
+    // só o próprio servidor da API e só rotas liberadas: nada de seguir link arbitrário
+    const rota = alvo.pathname.replace(raiz.pathname.replace(/\/+$/, ""), "");
+    if (alvo.origin !== raiz.origin || !ROTAS_GET.has(rota)) {
+      throw new ErroLF(`Anexo fora da API liberada: ${alvo.origin}${alvo.pathname}`, 0, rota);
+    }
+    for (let tentativa = 0; tentativa < 2; tentativa++) {
+      const t = await garantirToken(tentativa > 0);
+      const resp = await chamar(alvo.toString(), { method: "GET", headers: { Authorization: `Bearer ${t}` } });
+      if (resp.status === 401 && tentativa === 0) continue;
+      if (!resp.ok) throw new ErroLF(mensagemDeErro(resp.status, rota, (await resp.text()).slice(0, 200)), resp.status, rota);
+      const tamanho = Number(resp.headers.get("content-length") ?? 0);
+      if (tamanho > TAMANHO_MAX_ANEXO) throw new ErroLF(`Anexo grande demais (${tamanho} bytes).`, resp.status, rota);
+      const bytes = new Uint8Array(await resp.arrayBuffer());
+      if (bytes.length > TAMANHO_MAX_ANEXO) throw new ErroLF(`Anexo grande demais (${bytes.length} bytes).`, resp.status, rota);
+      return { bytes, tipo: resp.headers.get("content-type") ?? "" };
+    }
+    throw new ErroLF(mensagemDeErro(401, rota, ""), 401, rota);
+  };
+
   /**
    * PageIndex começa em 0 (a página 1 já é a SEGUNDA — confirmado contra a
    * API real) e a API aceita no máximo 500 itens por página. Com `totalPages`
@@ -256,5 +288,5 @@ export const criarClienteLF = (cfg: ConfigClienteLF): ClienteLF => {
     return todos as never[];
   };
 
-  return { get, consultar, paginar };
+  return { get, consultar, paginar, baixar };
 };

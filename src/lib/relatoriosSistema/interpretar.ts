@@ -298,6 +298,79 @@ export const interpretarFaturaEnel = (linhas: string[]): FaturaConcessionaria =>
   };
 };
 
+/**
+ * Copel (DANF3E). Histórico de 12 meses: "10/2026 111.286,32 12/11/2026 [pagto] 23956 226643 …"
+ * — mês, valor, vencimento, pagamento (opcional), consumo ponta, consumo fora ponta.
+ */
+export const interpretarFaturaCopel = (linhas: string[]): FaturaConcessionaria => {
+  const historico = linhas
+    .map((l) => l.match(/^(\d{2})\/(\d{4})\s+([\d.]+,\d{2})\s+\d{2}\/\d{2}\/\d{4}(?:\s+\d{2}\/\d{2}\/\d{4})?\s+(\d+)\s+(\d+)\s/))
+    .filter((m): m is RegExpMatchArray => Boolean(m));
+
+  // consumo do mês também aparece nos itens de fatura (garante quando o histórico não vem)
+  const itemPonta = linhas.join("\n").match(/CONSUMO PTA kWh\s+([\d.]+)/)?.[1];
+  const itemFora = linhas.join("\n").match(/CONSUMO F PTA kWh\s+([\d.]+)/)?.[1];
+  const referencia = linhas.join(" ").match(/(\d{2})\/(\d{4})\s+\d{2}\/\d{2}\/\d{4}\s+R\$\s?([\d.]+,\d{2})/);
+  if (!historico.length && !referencia) throw new Error("mês de referência não encontrado na conta da Copel");
+
+  const [atual, anterior] = historico;
+  const competencia = atual ? `${atual[2]}-${atual[1]}` : `${referencia![2]}-${referencia![1]}`;
+  const ponta = atual ? Number(atual[4]) : Number((itemPonta ?? "0").replace(/\./g, ""));
+  const foraPonta = atual ? Number(atual[5]) : Number((itemFora ?? "0").replace(/\./g, ""));
+  const valor = (atual ? numeroBR(atual[3]) : numeroBR(referencia![3])) ?? 0;
+  const leitura = linhas.join(" ").match(/(\d{2}\/\d{2}\/\d{4})\s+(\d{2}\/\d{2}\/\d{4})\s+(\d{1,2})\s+\d{2}\/\d{2}\/\d{4}/);
+  const cliente = linhas.find((l) => /^Nome:/i.test(l))?.replace(/^Nome:\s*/i, "").replace(/\s+\d{2}\/\d{2}\/\d{4}.*$/, "") ?? "";
+
+  return {
+    tipo: "fatura_energia",
+    concessionaria: "Copel",
+    cliente,
+    competencia,
+    unidade: "kWh",
+    consumo: ponta + foraPonta,
+    consumoAnterior: anterior ? Number(anterior[4]) + Number(anterior[5]) : null,
+    ponta,
+    foraPonta,
+    valor,
+    valorAnterior: anterior ? numeroBR(anterior[3]) : null,
+    detalhamento: leitura ? `Copel · leitura de ${leitura[1]} a ${leitura[2]} (${leitura[3]} dias)` : "Copel",
+  };
+};
+
+/**
+ * Sanepar. Leitura do mês: "30 23/10/2026 59385 60913 1528 10/2026" (dias, data,
+ * leitura anterior, atual, consumo, referência). Histórico: "11/25 … 09/26" / "1840 … 1542".
+ */
+export const interpretarFaturaSanepar = (linhas: string[]): FaturaConcessionaria => {
+  const leitura = linhas.map((l) => l.match(/^(\d{1,2})\s+(\d{2}\/\d{2}\/\d{4})\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d{2})\/(\d{4})$/)).find(Boolean);
+  if (!leitura) throw new Error("leitura do hidrômetro não encontrada na conta da Sanepar");
+  const [, dias, data, , , consumo, mes, ano] = leitura;
+
+  // histórico: a linha de meses "MM/AA …" e a de consumos logo abaixo
+  const iMeses = linhas.findIndex((l) => /^(\d{2}\/\d{2}\s+){5,}\d{2}\/\d{2}$/.test(l));
+  const consumos = iMeses >= 0 ? (linhas[iMeses + 1] ?? "").split(" ").map(Number).filter((n) => !Number.isNaN(n)) : [];
+
+  // "24/11/2026 19.691,02 16.737,37 0,00 36.428,39" → água, esgoto, outros, total
+  const totais = linhas.map((l) => l.match(/^\d{2}\/\d{2}\/\d{4}\s+([\d.]+,\d{2})\s+([\d.]+,\d{2})\s+([\d.]+,\d{2})\s+([\d.]+,\d{2})$/)).find(Boolean);
+  const valor = totais ? numeroBR(totais[4]) ?? 0 : numeroBR(linhas.join(" ").match(/\d{2}\/\d{4}\s+\d{2}\/\d{2}\/\d{4}\s+([\d.]+,\d{2})/)?.[1] ?? "") ?? 0;
+  const iConta = linhas.findIndex((l) => /^CONTA$/i.test(l));
+  const cliente = iConta >= 0 ? (linhas[iConta + 1] ?? "").replace(/\s+[\d.]+$/, "") : "";
+
+  return {
+    tipo: "fatura_agua",
+    concessionaria: "Sanepar",
+    cliente,
+    competencia: `${ano}-${mes}`,
+    unidade: "m³",
+    consumo: Number(consumo),
+    consumoAnterior: consumos.length ? consumos[consumos.length - 1] : null,
+    ponta: 0,
+    foraPonta: 0,
+    valor,
+    detalhamento: `Sanepar · leitura em ${data} (${dias} dias)`,
+  };
+};
+
 /* -------------------------------------------------------------------------- */
 /* Excel: boletos pagos                                                        */
 /* -------------------------------------------------------------------------- */
@@ -420,7 +493,10 @@ const reconhecer = (arquivo: ArquivoLido): RelatorioSistema => {
   const inicio = chaveNome(linhas.slice(0, 40).join(" "));
   if (/relatorio de previsto x realizado/.test(inicio)) return interpretarPrevistoRealizado(linhas);
   if (/^posicao financeira/.test(inicio)) return interpretarPosicaoFinanceira(linhas);
+  if (!linhas.length) throw new Error("PDF sem texto (conta escaneada) — confira e lance à mão");
   if (/sabesp/.test(inicio)) return interpretarFaturaSabesp(arquivo.paginas[0] ?? linhas);
+  if (/copel/.test(inicio)) return interpretarFaturaCopel(linhas);
+  if (/sanepar/.test(chaveNome(linhas.join(" ")))) return interpretarFaturaSanepar(linhas);
   if (/enel|eletropaulo/.test(chaveNome(linhas.join(" ")))) return interpretarFaturaEnel(arquivo.paginas[0] ?? linhas);
   if (/prestacao contas operacional/.test(inicio)) {
     return {

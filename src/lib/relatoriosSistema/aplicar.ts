@@ -184,6 +184,7 @@ const aplicarFatura = (d: DadosRelatorio, r: FaturaConcessionaria) => {
     ponta: r.ponta,
     foraPonta: r.foraPonta,
     fatura: r.valor,
+    faturaAnterior: r.valorAnterior ?? atual.faturaAnterior,
     detalhamento: r.detalhamento,
   };
   linhas[i] = nova;
@@ -221,6 +222,45 @@ const aplicarPedidos = (d: DadosRelatorio, r: PedidosCompra) => {
 };
 
 /* -------------------------------------------------------------------------- */
+/* Custo total das concessionárias (pagamentos do sistema)                     */
+/* -------------------------------------------------------------------------- */
+
+export interface CustosConcessionaria {
+  energia: { total: number; itens: { fornecedor: string; valor: number }[] } | null;
+  agua: { total: number; itens: { fornecedor: string; valor: number }[] } | null;
+}
+
+/**
+ * No mercado livre a fatura da distribuidora é só o "fio": o custo real de
+ * energia é a soma da conta contábil no mês. Aqui o valor da utilidade passa a
+ * ser esse total (e o detalhamento diz de onde veio). O consumo continua o da
+ * fatura lida.
+ */
+export const aplicarCustos = (d: DadosRelatorio, custos: CustosConcessionaria): { dados: DadosRelatorio; preenchido: ItemResumoImportacao[] } => {
+  const preenchido: ItemResumoImportacao[] = [];
+  const linhas = [...d.utilidades.linhas];
+  const aplicar = (padrao: RegExp, nome: string, unidade: string, custo: CustosConcessionaria["energia"]) => {
+    if (!custo?.total) return;
+    let i = linhas.findIndex((u) => padrao.test(chaveNome(u.utilidade)));
+    if (i < 0) {
+      linhas.push({ id: novoId(), utilidade: nome, unidade, consumo: 0, consumoAnterior: 0, ponta: 0, foraPonta: 0, faltas: 0, detalhamento: "", fatura: 0, faturaAnterior: 0, observacao: "" });
+      i = linhas.length - 1;
+    }
+    const fornecedores = [...new Set(custo.itens.map((x) => x.fornecedor.split(" ").slice(0, 2).join(" ")))].join(", ");
+    const base = linhas[i].detalhamento.replace(/\s·\scusto total.*$/, "");
+    linhas[i] = {
+      ...linhas[i],
+      fatura: custo.total,
+      detalhamento: `${base ? `${base} · ` : ""}custo total no mês: ${fornecedores}`.slice(0, 220),
+    };
+    preenchido.push({ secao: "utilidades", rotulo: `${nome} · custo`, detalhe: `${formatarMoeda(custo.total)} em ${custo.itens.length} pagamento(s): ${fornecedores}` });
+  };
+  aplicar(/energia|eletric/, "Energia", "kWh", custos.energia);
+  aplicar(/agua/, "Água", "m³", custos.agua);
+  return { dados: { ...d, utilidades: { ...d.utilidades, linhas } }, preenchido };
+};
+
+/* -------------------------------------------------------------------------- */
 
 /** Mês esperado de cada tipo de arquivo: financeiro x operação. */
 const mesesAceitos = (tipo: RelatorioSistema["tipo"], ctx: ContextoAplicacao): string[] => {
@@ -245,7 +285,22 @@ export const aplicarArquivos = (
 
   // Posição antes do previsto x realizado não importa, mas a ordem fixa deixa o resumo previsível.
   const ordem: RelatorioSistema["tipo"][] = ["posicao_financeira", "previsto_realizado", "boletos_pagos", "fatura_agua", "fatura_energia", "pedidos_compra", "informativo"];
-  const ordenados = [...arquivos].sort((a, b) => ordem.indexOf(a.relatorio.tipo) - ordem.indexOf(b.relatorio.tipo));
+  // Duas contas do mesmo tipo (ex.: a de setembro e a de outubro vieram juntas):
+  // fica a do mês do RGM; sem ela, a do mês da prestação.
+  const op = ctx.competencia.slice(0, 7);
+  const preferida = (tipo: RelatorioSistema["tipo"]) => {
+    const doTipo = arquivos.filter((a) => a.relatorio.tipo === tipo);
+    return doTipo.find((a) => "competencia" in a.relatorio && a.relatorio.competencia === op) ?? doTipo[0];
+  };
+  const descartadas = new Set(
+    (["fatura_agua", "fatura_energia"] as const).flatMap((t) => {
+      const fica = preferida(t);
+      return arquivos.filter((a) => a.relatorio.tipo === t && a !== fica);
+    }),
+  );
+  const ordenados = [...arquivos]
+    .filter((a) => !descartadas.has(a))
+    .sort((a, b) => ordem.indexOf(a.relatorio.tipo) - ordem.indexOf(b.relatorio.tipo));
 
   for (const { nome, relatorio: r } of ordenados) {
     if (r.tipo === "informativo") {
