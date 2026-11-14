@@ -1,6 +1,6 @@
 import { type ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Building2, LayoutDashboard, LogOut } from "lucide-react";
+import { Building2, LayoutDashboard, LogOut, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import logoRps from "@/assets/logo-rps.svg";
@@ -8,10 +8,11 @@ import logoRps from "@/assets/logo-rps.svg";
 const LINKS = [
   { para: "/", rotulo: "Relatórios", icone: LayoutDashboard },
   { para: "/empreendimentos", rotulo: "Empreendimentos", icone: Building2 },
+  { para: "/acessos", rotulo: "Acessos", icone: ShieldCheck },
 ];
 
 export const AppShell = ({ children }: { children: ReactNode }) => {
-  const { perfil, user, interno, signOut } = useAuth();
+  const { perfil, user, interno, papeis, signOut } = useAuth();
   const { pathname } = useLocation();
 
   const nome = perfil?.nome ?? user?.email ?? "";
@@ -61,7 +62,7 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
             <div className="hidden text-right sm:block">
               <p className="text-sm font-semibold leading-tight text-foreground">{nome}</p>
               <p className="text-xs text-muted-foreground">
-                {interno ? "Gestor RPS" : "Acesso do cliente"}
+                {papeis.includes("diretoria") ? "Diretoria RPS" : interno ? "Gestor RPS" : "Acesso do cliente"}
               </p>
             </div>
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">

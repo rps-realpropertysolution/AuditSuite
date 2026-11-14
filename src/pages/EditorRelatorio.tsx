@@ -3,9 +3,11 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   AlertTriangle,
   ArrowLeft,
+  CalendarRange,
   Check,
   CircleAlert,
   Cloud,
+  CloudDownload,
   CloudOff,
   Loader2,
   Play,
@@ -20,6 +22,7 @@ import {
   SecaoConclusao,
   SecaoFinanceiro,
   SecaoSumario,
+  SecaoValorGerado,
 } from "@/components/relatorio/secoes-financeiro";
 import {
   SecaoFornecedores,
@@ -34,11 +37,13 @@ import {
   SecaoProximosPassos,
   SecaoRiscos,
 } from "@/components/relatorio/secoes-governanca";
-import { RelatorioImpresso } from "@/components/relatorio/RelatorioImpresso";
+import { ResumoImportacao, type EstadoResumoImportacao } from "@/components/relatorio/ResumoImportacao";
+import { useImportacaoLF } from "@/hooks/useImportacaoLF";
+import { aplicarImportacao } from "@/lib/importacao";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAutosave } from "@/hooks/useAutosave";
 import { salvarDados, useMudarStatus, useRelatorio } from "@/hooks/useRelatorios";
-import { formatarCompetencia, tempoRelativo } from "@/lib/format";
+import { formatarCompetencia, formatarDataHora, tempoRelativo } from "@/lib/format";
 import {
   calcularAlertas,
   calcularIndiceExecutivo,
@@ -59,6 +64,7 @@ const NAV: { id: SecaoId; rotulo: string }[] = [
   { id: "juridico", rotulo: "Jurídico" },
   { id: "utilidades", rotulo: "Utilidades" },
   { id: "capex", rotulo: "CAPEX" },
+  { id: "valorGerado", rotulo: "Valor gerado" },
   { id: "riscos", rotulo: "Riscos" },
   { id: "proximosPassos", rotulo: "Próximos passos" },
   { id: "fotos", rotulo: "Evidências" },
@@ -74,6 +80,9 @@ const EditorRelatorio = () => {
 
   const [dados, setDados] = useState<DadosRelatorio | null>(null);
   const [secaoAtiva, setSecaoAtiva] = useState<SecaoId>("sumario");
+  const importar = useImportacaoLF();
+  const [resumoImportacao, setResumoImportacao] = useState<EstadoResumoImportacao | null>(null);
+  const [erroImportacao, setErroImportacao] = useState<string | null>(null);
 
   // Carrega uma vez; a partir daí o estado local é a fonte de verdade
   useEffect(() => {
@@ -136,6 +145,29 @@ const EditorRelatorio = () => {
     document.getElementById("riscos")?.scrollIntoView({ behavior: "smooth" });
   };
 
+  const emp = relatorio?.empreendimento;
+  const integrado = Boolean(emp?.lf_cd_condominio);
+
+  /** Puxa o mês do LiveFacilities e mescla — o gestor revisa; tudo segue editável. */
+  const importarDoLiveFacilities = async () => {
+    if (!id || !dados) return;
+    setErroImportacao(null);
+    try {
+      const resultado = await importar.mutateAsync(id);
+      const mescla = aplicarImportacao(dados, resultado);
+      setDados(mescla.dados);
+      setResumoImportacao({ ...mescla, consultas: resultado.consultas });
+    } catch (e) {
+      setErroImportacao(e instanceof Error ? e.message : "Falha ao importar do LiveFacilities.");
+    }
+  };
+
+  /** Apresentação e PDF leem do banco: grava antes de abrir. */
+  const abrir = async (destino: string) => {
+    if (!somenteLeitura) await salvarAgora();
+    navegar(destino);
+  };
+
   const publicar = async () => {
     if (!id || !relatorio) return;
     await salvarAgora();
@@ -176,8 +208,9 @@ const EditorRelatorio = () => {
 
   return (
     <>
-      {/* Versão de impressão — fica oculta na tela e assume no @media print */}
-      <RelatorioImpresso relatorio={{ ...relatorio, dados }} />
+      {resumoImportacao ? (
+        <ResumoImportacao estado={resumoImportacao} onFechar={() => setResumoImportacao(null)} />
+      ) : null}
 
       <div className="screen-only">
         <AppShell>
@@ -240,9 +273,26 @@ const EditorRelatorio = () => {
                   </span>
                 ) : null}
 
+                {interno && !somenteLeitura ? (
+                  <button
+                    type="button"
+                    onClick={() => void importarDoLiveFacilities()}
+                    disabled={!integrado || importar.isPending}
+                    title={
+                      integrado
+                        ? "Puxa os números do mês do LiveFacilities. Tudo continua editável."
+                        : "Cadastre o código do condomínio do LiveFacilities no empreendimento."
+                    }
+                    className="inline-flex items-center gap-2 rounded-md border border-input px-3.5 py-2 text-sm font-semibold transition hover:border-primary hover:text-primary disabled:opacity-50"
+                  >
+                    {importar.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CloudDownload className="h-4 w-4" />}
+                    {importar.isPending ? "Importando…" : "Importar do LiveFacilities"}
+                  </button>
+                ) : null}
+
                 <button
                   type="button"
-                  onClick={() => navegar(`/relatorio/${id}/apresentar`)}
+                  onClick={() => void abrir(`/relatorio/${id}/apresentar`)}
                   className="inline-flex items-center gap-2 rounded-md bg-primary px-3.5 py-2 text-sm font-bold text-primary-foreground transition hover:bg-primary/90"
                 >
                   <Play className="h-4 w-4" /> Apresentar
@@ -250,7 +300,16 @@ const EditorRelatorio = () => {
 
                 <button
                   type="button"
-                  onClick={() => window.print()}
+                  onClick={() => void abrir(`/empreendimento/${relatorio.empreendimento_id}/ano/${relatorio.competencia.slice(0, 4)}`)}
+                  title="O ano inteiro, mês a mês"
+                  className="inline-flex items-center gap-2 rounded-md border border-input px-3.5 py-2 text-sm font-semibold transition hover:border-primary hover:text-primary"
+                >
+                  <CalendarRange className="h-4 w-4" /> Visão anual
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => void abrir(`/relatorio/${id}/apresentar?pdf=1`)}
                   className="inline-flex items-center gap-2 rounded-md border border-input px-3.5 py-2 text-sm font-semibold transition hover:border-primary hover:text-primary"
                 >
                   <Printer className="h-4 w-4" /> PDF
@@ -325,6 +384,54 @@ const EditorRelatorio = () => {
             </nav>
 
             <div className="min-w-0 flex-1 space-y-6">
+              {erroImportacao ? (
+                <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+                  <strong>Importação não concluída.</strong> {erroImportacao}
+                </p>
+              ) : null}
+
+              {/* Convite para puxar os números do sistema */}
+              {interno && !somenteLeitura && !dados.importacao ? (
+                <section className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-primary/30 bg-primary/5 p-5">
+                  <div className="max-w-2xl">
+                    <h2 className="flex items-center gap-2 text-sm font-bold text-foreground">
+                      <CloudDownload className="h-4 w-4 text-primary" /> Comece pelos números do sistema
+                    </h2>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {integrado
+                        ? "Financeiro, inadimplência, ordens de serviço, contratos e documentos vêm do LiveFacilities em um clique. Você revisa, ajusta o que quiser e completa a leitura do mês."
+                        : "Cadastre o código do condomínio do LiveFacilities (ou use \"Trazer do LiveFacilities\" em Empreendimentos) para puxar os números automaticamente."}
+                    </p>
+                  </div>
+                  {integrado ? (
+                    <button
+                      type="button"
+                      onClick={() => void importarDoLiveFacilities()}
+                      disabled={importar.isPending}
+                      className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground transition hover:bg-primary/90 disabled:opacity-60"
+                    >
+                      {importar.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CloudDownload className="h-4 w-4" />}
+                      Importar {formatarCompetencia(relatorio.competencia)}
+                    </button>
+                  ) : (
+                    <Link
+                      to="/empreendimentos"
+                      className="inline-flex items-center gap-2 rounded-md border border-input bg-card px-4 py-2.5 text-sm font-semibold transition hover:border-primary hover:text-primary"
+                    >
+                      Configurar empreendimento
+                    </Link>
+                  )}
+                </section>
+              ) : null}
+
+              {dados.importacao ? (
+                <p className="text-xs text-muted-foreground">
+                  Números importados do {dados.importacao.fonte} em {formatarDataHora(dados.importacao.em)}.
+                  Tudo pode ser ajustado à mão.
+                  {dados.importacao.avisos.length ? ` ${dados.importacao.avisos.length} aviso(s) na importação.` : ""}
+                </p>
+              ) : null}
+
               {/* Alertas detectados automaticamente */}
               {alertas.length > 0 ? (
                 <section className="rounded-xl border border-border bg-card p-5">
@@ -364,7 +471,7 @@ const EditorRelatorio = () => {
               ) : null}
 
               <SecaoSumario {...props} />
-              <SecaoFinanceiro {...props} />
+              <SecaoFinanceiro {...props} competencia={relatorio.competencia} />
               <SecaoOperacao {...props} />
               <SecaoFornecedores {...props} />
               <SecaoContratos {...props} />
@@ -372,6 +479,7 @@ const EditorRelatorio = () => {
               <SecaoJuridico {...props} />
               <SecaoUtilidades {...props} competencia={relatorio.competencia} />
               <SecaoCapex {...props} />
+              <SecaoValorGerado {...props} />
               <SecaoRiscos {...props} />
               <SecaoProximosPassos {...props} />
               <SecaoFotos {...props} relatorioId={relatorio.id} />

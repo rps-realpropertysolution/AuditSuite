@@ -64,53 +64,73 @@ export const useHistorico = (empreendimentoId: string | undefined, meses = 13) =
     },
   });
 
+/** Todos os relatórios de um empreendimento num ano, em ordem cronológica (visão anual). */
+export const useRelatoriosDoAno = (empreendimentoId: string | undefined, ano: number) =>
+  useQuery({
+    queryKey: ["relatorios-ano", empreendimentoId, ano],
+    enabled: Boolean(empreendimentoId),
+    queryFn: async (): Promise<Relatorio[]> => {
+      const { data, error } = await supabase
+        .from("relatorios")
+        .select("*, empreendimento:empreendimentos(*)")
+        .eq("empreendimento_id", empreendimentoId!)
+        .gte("competencia", `${ano}-01-01`)
+        .lte("competencia", `${ano}-12-01`)
+        .order("competencia");
+      if (error) throw error;
+      return (data ?? []).map(comDadosNormalizados);
+    },
+  });
+
 /**
  * Cria o relatório do mês. Se existir o mês anterior, herda a estrutura dele
  * — é o passo que elimina a remontagem manual a cada competência.
  */
+export const criarRelatorio = async ({
+  empreendimentoId,
+  competencia,
+}: {
+  empreendimentoId: string;
+  competencia: string;
+}): Promise<Relatorio> => {
+  const { data: anterior } = await supabase
+    .from("relatorios")
+    .select("dados")
+    .eq("empreendimento_id", empreendimentoId)
+    .eq("competencia", competenciaAnterior(competencia))
+    .maybeSingle();
+
+  const dados = anterior?.dados
+    ? herdarDoMesAnterior(normalizarDados(anterior.dados))
+    : relatorioEmBranco();
+
+  const { data: sessao } = await supabase.auth.getUser();
+  const { data, error } = await supabase
+    .from("relatorios")
+    .insert({
+      empreendimento_id: empreendimentoId,
+      competencia,
+      dados,
+      status: "rascunho" satisfies StatusRelatorio,
+      indice_executivo: calcularIndiceExecutivo(dados),
+      created_by: sessao.user?.id,
+    })
+    .select("*, empreendimento:empreendimentos(*)")
+    .single();
+
+  if (error) {
+    if (error.code === "23505") {
+      throw new Error("Já existe um relatório para este empreendimento nesta competência.");
+    }
+    throw error;
+  }
+  return comDadosNormalizados(data);
+};
+
 export const useCriarRelatorio = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({
-      empreendimentoId,
-      competencia,
-    }: {
-      empreendimentoId: string;
-      competencia: string;
-    }): Promise<Relatorio> => {
-      const { data: anterior } = await supabase
-        .from("relatorios")
-        .select("dados")
-        .eq("empreendimento_id", empreendimentoId)
-        .eq("competencia", competenciaAnterior(competencia))
-        .maybeSingle();
-
-      const dados = anterior?.dados
-        ? herdarDoMesAnterior(normalizarDados(anterior.dados))
-        : relatorioEmBranco();
-
-      const { data: sessao } = await supabase.auth.getUser();
-      const { data, error } = await supabase
-        .from("relatorios")
-        .insert({
-          empreendimento_id: empreendimentoId,
-          competencia,
-          dados,
-          status: "rascunho" satisfies StatusRelatorio,
-          indice_executivo: calcularIndiceExecutivo(dados),
-          created_by: sessao.user?.id,
-        })
-        .select("*, empreendimento:empreendimentos(*)")
-        .single();
-
-      if (error) {
-        if (error.code === "23505") {
-          throw new Error("Já existe um relatório para este empreendimento nesta competência.");
-        }
-        throw error;
-      }
-      return comDadosNormalizados(data);
-    },
+    mutationFn: criarRelatorio,
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["relatorios"] });
     },

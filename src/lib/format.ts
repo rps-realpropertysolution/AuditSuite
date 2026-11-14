@@ -32,6 +32,19 @@ export const formatarMoeda = (valor: number) => brl.format(Number.isFinite(valor
 export const formatarMoedaCompacta = (valor: number) =>
   brlCompacto.format(Number.isFinite(valor) ? valor : 0);
 
+/**
+ * Moeda no padrão dos slides do RGM: "R$ 127,0 mil", "R$ 1,05 mi", "-R$ 199,5 mil".
+ * O sinal vem antes do R$, como no relatório corporativo.
+ */
+export const formatarMoedaMil = (valor: number) => {
+  const v = Number.isFinite(valor) ? valor : 0;
+  const sinal = v < 0 ? "-" : "";
+  const a = Math.abs(v);
+  if (a >= 1_000_000) return `${sinal}R$ ${formatarNumero(a / 1_000_000, 2)} mi`;
+  if (a >= 1_000) return `${sinal}R$ ${formatarNumero(a / 1_000, 1)} mil`;
+  return `${sinal}R$ ${formatarNumero(a, 0)}`;
+};
+
 export const formatarNumero = (valor: number, casas = 0) =>
   new Intl.NumberFormat("pt-BR", {
     minimumFractionDigits: casas,

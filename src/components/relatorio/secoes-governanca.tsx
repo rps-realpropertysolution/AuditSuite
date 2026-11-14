@@ -4,6 +4,7 @@ import {
   Campo,
   CampoData,
   CampoMoeda,
+  CampoNumero,
   CampoSelecao,
   CampoTexto,
 } from "@/components/campos";
@@ -13,14 +14,19 @@ import { formatarMoeda } from "@/lib/format";
 import {
   contarContratos,
   contarDocumentos,
+  DIAS_ALERTA_DOCUMENTO,
   inadimplenciaDoMes,
   inadimplenciaRecebida,
   inadimplenciaTotal,
+  situacaoCertidao,
+  situacaoContrato,
   situacaoDocumento,
   totalRubrica,
 } from "@/lib/metrics";
 import type {
   DadosRelatorio,
+  LinhaAcordo,
+  LinhaCertidao,
   LinhaContrato,
   LinhaDocumento,
   LinhaProcesso,
@@ -29,6 +35,19 @@ import type {
   LinhaRubricaInadimplencia,
 } from "@/lib/types";
 import type { PropsSecao } from "./secoes-financeiro";
+
+const PROGNOSTICOS = [
+  { valor: "nao_apurado" as const, rotulo: "Não apurado" },
+  { valor: "provavel" as const, rotulo: "Provável" },
+  { valor: "possivel" as const, rotulo: "Possível" },
+  { valor: "remoto" as const, rotulo: "Remoto" },
+];
+
+const STATUS_ACAO = [
+  { valor: "em_andamento" as const, rotulo: "Em andamento" },
+  { valor: "concluida" as const, rotulo: "Concluída" },
+  { valor: "outra" as const, rotulo: "Outra situação" },
+];
 
 const CRITICIDADES = [
   { valor: "baixa" as const, rotulo: "Baixa" },
@@ -77,18 +96,37 @@ export const SecaoContratos = ({ dados, atualizar, somenteLeitura }: PropsSecao)
       chave: "situacao",
       titulo: "Situação",
       largura: "w-40",
-      render: (l, up) => (
-        <CampoSelecao
-          valor={l.situacao}
-          desabilitado={somenteLeitura}
-          opcoes={SITUACOES_CONTRATO}
-          onChange={(v) => up({ situacao: v })}
-        />
-      ),
+      render: (l, up) => {
+        // Com data de término a situação é calculada; sem data, vale a escolha do gestor.
+        if (l.vencimento) {
+          const s = situacaoContrato(l);
+          return (
+            <div className="flex flex-col items-start gap-1 pt-1.5" title="Calculada pela data de término. Para mudar, altere ou apague a data.">
+              <BadgeSemaforo
+                semaforo={s.situacao === "vencido" ? "vermelho" : s.situacao === "em_renovacao" ? "amarelo" : "verde"}
+                rotulo={s.situacao === "vencido" ? "Vencido" : s.situacao === "em_renovacao" ? "Renovar" : "Vigente"}
+              />
+              {s.diasRestantes !== null ? (
+                <span className="text-[11px] text-muted-foreground">
+                  {s.diasRestantes < 0 ? `há ${Math.abs(s.diasRestantes)} dias` : `em ${s.diasRestantes} dias`}
+                </span>
+              ) : null}
+            </div>
+          );
+        }
+        return (
+          <CampoSelecao
+            valor={l.situacao}
+            desabilitado={somenteLeitura}
+            opcoes={SITUACOES_CONTRATO}
+            onChange={(v) => up({ situacao: v })}
+          />
+        );
+      },
     },
     {
       chave: "vencimento",
-      titulo: "Vencimento",
+      titulo: "Término",
       largura: "w-44",
       render: (l, up) => (
         <CampoData valor={l.vencimento} desabilitado={somenteLeitura} onChange={(v) => up({ vencimento: v })} />
@@ -109,7 +147,7 @@ export const SecaoContratos = ({ dados, atualizar, somenteLeitura }: PropsSecao)
       id="contratos"
       titulo="Contratos"
       icone={<FileSignature className="h-5 w-5" />}
-      descricao="Carteira de contratos do ativo. Cadastre uma vez — nos meses seguintes só o que mudar precisa de edição."
+      descricao="Carteira de contratos do ativo. Com a data de término, a situação é calculada (renovação em até 120 dias). Tudo continua editável."
       aviso={
         contagem.vencidos > 0 ? (
           <p className="flex items-center gap-2 text-sm font-semibold text-semaforo-vermelho">
@@ -194,7 +232,23 @@ export const SecaoDocumentos = ({ dados, atualizar, somenteLeitura }: PropsSecao
       titulo: "Validade",
       largura: "w-44",
       render: (l, up) => (
-        <CampoData valor={l.validade} desabilitado={somenteLeitura} onChange={(v) => up({ validade: v })} />
+        <div className="space-y-1.5">
+          {l.permanente ? (
+            <span className="block px-1 pt-2 text-xs font-semibold text-muted-foreground">Sem vencimento</span>
+          ) : (
+            <CampoData valor={l.validade} desabilitado={somenteLeitura} onChange={(v) => up({ validade: v })} />
+          )}
+          <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={Boolean(l.permanente)}
+              disabled={somenteLeitura}
+              onChange={(e) => up({ permanente: e.target.checked })}
+              className="h-3.5 w-3.5 accent-primary"
+            />
+            Permanente
+          </label>
+        </div>
       ),
     },
     {
@@ -242,7 +296,7 @@ export const SecaoDocumentos = ({ dados, atualizar, somenteLeitura }: PropsSecao
             />
             <span className={contagem.vencidos > 0 ? "text-semaforo-vermelho" : "text-semaforo-amarelo"}>
               {contagem.vencidos} vencido{contagem.vencidos === 1 ? "" : "s"} · {contagem.aVencer} a
-              vencer nos próximos 60 dias
+              vencer nos próximos {DIAS_ALERTA_DOCUMENTO} dias
             </span>
           </p>
         ) : null
@@ -253,7 +307,7 @@ export const SecaoDocumentos = ({ dados, atualizar, somenteLeitura }: PropsSecao
         colunas={colunas}
         somenteLeitura={somenteLeitura}
         onChange={(linhas) => set({ linhas })}
-        novaLinha={() => ({ id: novoId(), documento: "", orgao: "", validade: "", observacao: "" })}
+        novaLinha={() => ({ id: novoId(), documento: "", orgao: "", validade: "", permanente: false, observacao: "" })}
         rotuloAdicionar="Adicionar documento"
         vazio={{
           titulo: "Nenhum documento cadastrado",
@@ -334,6 +388,100 @@ export const SecaoJuridico = ({ dados, atualizar, somenteLeitura }: PropsSecao) 
     },
   ];
 
+  const colunasAcordo: Coluna<LinhaAcordo>[] = [
+    {
+      chave: "unidade",
+      titulo: "Unidade",
+      largura: "min-w-[120px]",
+      render: (l, up) => <CampoTexto valor={l.unidade} desabilitado={somenteLeitura} onChange={(v) => up({ unidade: v })} />,
+    },
+    {
+      chave: "devedor",
+      titulo: "Devedor",
+      largura: "min-w-[160px]",
+      render: (l, up) => <CampoTexto valor={l.devedor} desabilitado={somenteLeitura} onChange={(v) => up({ devedor: v })} />,
+    },
+    {
+      chave: "parcelas",
+      titulo: "Parcelas pagas / total",
+      largura: "w-44",
+      render: (l, up) => (
+        <div className="flex items-center gap-1.5">
+          <CampoNumero valor={l.parcelasPagas} desabilitado={somenteLeitura} onChange={(v) => up({ parcelasPagas: v })} />
+          <span className="text-muted-foreground">/</span>
+          <CampoNumero valor={l.parcelas} desabilitado={somenteLeitura} onChange={(v) => up({ parcelas: v })} />
+        </div>
+      ),
+    },
+    {
+      chave: "valor",
+      titulo: "Valor do acordo",
+      largura: "w-40",
+      alinhar: "direita",
+      render: (l, up) => <CampoMoeda valor={l.valor} desabilitado={somenteLeitura} onChange={(v) => up({ valor: v })} />,
+    },
+    {
+      chave: "valorPago",
+      titulo: "Pago",
+      largura: "w-40",
+      alinhar: "direita",
+      render: (l, up) => <CampoMoeda valor={l.valorPago} desabilitado={somenteLeitura} onChange={(v) => up({ valorPago: v })} />,
+    },
+    {
+      chave: "status",
+      titulo: "Status",
+      largura: "min-w-[120px]",
+      render: (l, up) => <CampoTexto valor={l.status} desabilitado={somenteLeitura} onChange={(v) => up({ status: v })} />,
+    },
+  ];
+
+  const colunasCertidao: Coluna<LinhaCertidao>[] = [
+    {
+      chave: "certidao",
+      titulo: "Certidão",
+      largura: "min-w-[220px]",
+      render: (l, up) => <CampoTexto valor={l.certidao} desabilitado={somenteLeitura} onChange={(v) => up({ certidao: v })} />,
+    },
+    {
+      chave: "orgao",
+      titulo: "Órgão",
+      largura: "min-w-[180px]",
+      render: (l, up) => <CampoTexto valor={l.orgao} desabilitado={somenteLeitura} onChange={(v) => up({ orgao: v })} />,
+    },
+    {
+      chave: "validade",
+      titulo: "Validade",
+      largura: "w-44",
+      render: (l, up) => <CampoData valor={l.validade} desabilitado={somenteLeitura} onChange={(v) => up({ validade: v })} />,
+    },
+    {
+      chave: "situacao",
+      titulo: "Situação",
+      largura: "w-44",
+      render: (l, up) => {
+        const st = situacaoCertidao(l);
+        return (
+          <div className="flex flex-col gap-1 pt-1.5">
+            <BadgeSemaforo
+              semaforo={st === "regular" ? "verde" : st === "nao_informada" ? "amarelo" : "vermelho"}
+              rotulo={st === "regular" ? "Regular" : st === "nao_informada" ? "Não informada" : st === "positiva" ? "Positiva" : "Vencida"}
+            />
+            <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={Boolean(l.positiva)}
+                disabled={somenteLeitura}
+                onChange={(e) => up({ positiva: e.target.checked })}
+                className="h-3.5 w-3.5 accent-primary"
+              />
+              Positiva (há pendência)
+            </label>
+          </div>
+        );
+      },
+    },
+  ];
+
   const colunas: Coluna<LinhaProcesso>[] = [
     {
       chave: "numero",
@@ -349,9 +497,17 @@ export const SecaoJuridico = ({ dados, atualizar, somenteLeitura }: PropsSecao) 
       ),
     },
     {
+      chave: "tipo",
+      titulo: "Tipo",
+      largura: "w-36",
+      render: (l, up) => (
+        <CampoTexto valor={l.tipo ?? ""} desabilitado={somenteLeitura} onChange={(v) => up({ tipo: v })} placeholder="Trabalhista" />
+      ),
+    },
+    {
       chave: "vara",
       titulo: "Vara / foro",
-      largura: "min-w-[160px]",
+      largura: "min-w-[140px]",
       render: (l, up) => (
         <CampoTexto valor={l.vara} desabilitado={somenteLeitura} onChange={(v) => up({ vara: v })} />
       ),
@@ -370,6 +526,26 @@ export const SecaoJuridico = ({ dados, atualizar, somenteLeitura }: PropsSecao) 
       largura: "min-w-[180px]",
       render: (l, up) => (
         <CampoTexto valor={l.andamento} desabilitado={somenteLeitura} onChange={(v) => up({ andamento: v })} />
+      ),
+    },
+    {
+      chave: "valor",
+      titulo: "Valor da causa",
+      largura: "w-40",
+      alinhar: "direita",
+      render: (l, up) => <CampoMoeda valor={l.valor ?? 0} desabilitado={somenteLeitura} onChange={(v) => up({ valor: v })} />,
+    },
+    {
+      chave: "prognostico",
+      titulo: "Prognóstico",
+      largura: "w-36",
+      render: (l, up) => (
+        <CampoSelecao
+          valor={l.prognostico ?? "nao_apurado"}
+          desabilitado={somenteLeitura}
+          opcoes={PROGNOSTICOS}
+          onChange={(v) => up({ prognostico: v })}
+        />
       ),
     },
     {
@@ -441,6 +617,34 @@ export const SecaoJuridico = ({ dados, atualizar, somenteLeitura }: PropsSecao) 
       </div>
 
       <div>
+        <h3 className="mb-1 text-sm font-bold">Acordos de inadimplência</h3>
+        <p className="mb-3 text-xs text-muted-foreground">
+          Acordos em curso seguem para o mês seguinte até a quitação.
+        </p>
+        <TabelaEditavel
+          linhas={jur.acordos}
+          colunas={colunasAcordo}
+          somenteLeitura={somenteLeitura}
+          onChange={(acordos) => set({ acordos })}
+          novaLinha={() => ({
+            id: novoId(),
+            unidade: "",
+            devedor: "",
+            parcelas: 0,
+            parcelasPagas: 0,
+            valor: 0,
+            valorPago: 0,
+            status: "Em andamento",
+          })}
+          rotuloAdicionar="Adicionar acordo"
+          vazio={{
+            titulo: "Nenhum acordo em curso",
+            descricao: "Os acordos vêm do LiveFacilities na importação, ou podem ser lançados aqui.",
+          }}
+        />
+      </div>
+
+      <div>
         <h3 className="mb-3 text-sm font-bold">Processos em andamento</h3>
         <TabelaEditavel
           linhas={jur.processos}
@@ -455,12 +659,37 @@ export const SecaoJuridico = ({ dados, atualizar, somenteLeitura }: PropsSecao) 
             andamento: "",
             proximaData: "",
             criticidade: "media" as const,
+            tipo: "",
+            valor: 0,
+            prognostico: "nao_apurado" as const,
           })}
           rotuloAdicionar="Adicionar processo"
           vazio={{
             titulo: "Nenhum processo em andamento",
             descricao: "O relatório informará explicitamente que não há litígios no período.",
           }}
+        />
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Campo label="Escritório responsável pelos processos">
+          <CampoTexto valor={jur.escritorio} desabilitado={somenteLeitura} onChange={(v) => set({ escritorio: v })} />
+        </Campo>
+      </div>
+
+      <div>
+        <h3 className="mb-1 text-sm font-bold">Certidões do condomínio</h3>
+        <p className="mb-3 text-xs text-muted-foreground">
+          Informe a validade; sem data, aparece como "não informada". A importação preenche as que estiverem
+          cadastradas como documento no LiveFacilities.
+        </p>
+        <TabelaEditavel
+          linhas={jur.certidoes}
+          colunas={colunasCertidao}
+          somenteLeitura={somenteLeitura}
+          onChange={(certidoes) => set({ certidoes })}
+          novaLinha={() => ({ id: novoId(), certidao: "", orgao: "", validade: "" })}
+          rotuloAdicionar="Adicionar certidão"
         />
       </div>
 
@@ -505,8 +734,21 @@ export const SecaoRiscos = ({ dados, atualizar, somenteLeitura }: PropsSecao) =>
       ),
     },
     {
+      chave: "consequencia",
+      titulo: "Consequência",
+      largura: "min-w-[180px]",
+      render: (l, up) => (
+        <CampoTexto
+          valor={l.consequencia ?? ""}
+          desabilitado={somenteLeitura}
+          onChange={(v) => up({ consequencia: v })}
+          placeholder="O que acontece se nada for feito"
+        />
+      ),
+    },
+    {
       chave: "acao",
-      titulo: "Ação",
+      titulo: "Tratamento / ação",
       largura: "min-w-[200px]",
       render: (l, up) => (
         <CampoTexto valor={l.acao} desabilitado={somenteLeitura} onChange={(v) => up({ acao: v })} />
@@ -528,6 +770,19 @@ export const SecaoRiscos = ({ dados, atualizar, somenteLeitura }: PropsSecao) =>
         <CampoData valor={l.prazo} desabilitado={somenteLeitura} onChange={(v) => up({ prazo: v })} />
       ),
     },
+    {
+      chave: "status",
+      titulo: "Situação",
+      largura: "w-40",
+      render: (l, up) => (
+        <CampoSelecao
+          valor={l.status ?? "em_andamento"}
+          desabilitado={somenteLeitura}
+          opcoes={STATUS_ACAO}
+          onChange={(v) => up({ status: v })}
+        />
+      ),
+    },
   ];
 
   return (
@@ -535,7 +790,7 @@ export const SecaoRiscos = ({ dados, atualizar, somenteLeitura }: PropsSecao) =>
       id="riscos"
       titulo="Matriz de riscos e plano de ação"
       icone={<AlertTriangle className="h-5 w-5" />}
-      descricao="Cada risco com dono e prazo. Riscos não resolvidos são herdados pelo relatório do mês seguinte."
+      descricao="O action log do empreendimento: cada ação com dono, prazo e situação. O % de ações concluídas vai para o painel executivo; o que fica em aberto é herdado pelo mês seguinte."
     >
       <TabelaEditavel
         linhas={dados.riscos.linhas}
@@ -546,11 +801,13 @@ export const SecaoRiscos = ({ dados, atualizar, somenteLeitura }: PropsSecao) =>
           id: novoId(),
           assunto: "",
           criticidade: "media" as const,
+          consequencia: "",
           acao: "",
           responsavel: "",
           prazo: "",
+          status: "em_andamento" as const,
         })}
-        rotuloAdicionar="Adicionar risco"
+        rotuloAdicionar="Adicionar ação / risco"
         vazio={{
           titulo: "Matriz de riscos limpa",
           descricao:

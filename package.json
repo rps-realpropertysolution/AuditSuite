@@ -1,7 +1,7 @@
 {
-  "name": "vite_react_shadcn_ts",
+  "name": "rgm-insights",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,7 +10,10 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "lf:testar": "node --experimental-strip-types --no-warnings --env-file=.env scripts/livefacilities/testar.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.app.json",
+    "lf:empreendimentos": "node --experimental-strip-types --no-warnings --env-file=.env scripts/livefacilities/empreendimentos.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

@@ -16,6 +16,24 @@ export type Criticidade = "baixa" | "media" | "alta";
 export type StatusRelatorio = "rascunho" | "revisao" | "publicado";
 export type Semaforo = "verde" | "amarelo" | "vermelho";
 
+/**
+ * Ficha técnica do ativo — o slide "O empreendimento".
+ * Antes era texto repetido à mão todo mês no PPTX; agora é cadastro.
+ */
+export interface FichaEmpreendimento {
+  areaConstruida?: number | null;
+  areaPrivativa?: number | null;
+  torres?: string;
+  pavimentos?: string;
+  vagas?: number | null;
+  elevadores?: number | null;
+  /** YYYY-MM */
+  inicioGestao?: string;
+  /** Diferenciais do ativo: "Heliponto homologado", "Mercado Livre de energia"… */
+  destaques?: string[];
+  sindicoDocumento?: string;
+}
+
 export interface Empreendimento {
   id: string;
   nome: string;
@@ -28,6 +46,12 @@ export interface Empreendimento {
   proprietario_nome: string | null;
   gestor_nome: string | null;
   ativo: boolean;
+  /** Número interno do empreendimento no LiveFacilities (ex.: 231). */
+  lf_id_empreendimento: number | null;
+  /** Código de 4 dígitos do topo do sistema (ex.: "0231"). Nem sempre igual ao id. */
+  lf_cd_condominio: string | null;
+  ficha: FichaEmpreendimento | null;
+  foto_path: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -126,18 +150,66 @@ export interface LinhaDocumento {
   documento: string;
   orgao: string;
   validade: string; // YYYY-MM-DD
+  /** Documento sem vencimento (convenção, escritura…). Conta como "em dia". */
+  permanente?: boolean;
   observacao: string;
 }
 
-/** Slide JURÍDICO */
+/** Acordo de inadimplência (LiveFacilities: /Acordo/ListaAcordo). */
+export interface LinhaAcordo {
+  id: string;
+  unidade: string;
+  devedor: string;
+  parcelas: number;
+  parcelasPagas: number;
+  valor: number;
+  valorPago: number;
+  status: string;
+}
+
+export type Prognostico = "provavel" | "possivel" | "remoto" | "nao_apurado";
+
+/** Slide JURÍDICO · DILIGÊNCIA E CERTIDÕES */
 export interface LinhaProcesso {
   id: string;
   numero: string;
   vara: string;
+  /** Trabalhista, cível, fiscal… */
+  tipo?: string;
   objeto: string;
   andamento: string;
   proximaData: string; // YYYY-MM-DD
   criticidade: Criticidade;
+  /** Valor da causa informado pelo escritório. 0 = não apurado. */
+  valor?: number;
+  prognostico?: Prognostico;
+}
+
+/** Certidões do condomínio (CND federal, FGTS, CNDT, estadual, municipal). */
+export interface LinhaCertidao {
+  id: string;
+  certidao: string;
+  orgao: string;
+  /** YYYY-MM-DD; vazio = não informada. */
+  validade: string;
+  /** Positiva = há pendência. */
+  positiva?: boolean;
+}
+
+/**
+ * Valor gerado no período — o que a gestão entregou em dinheiro.
+ * O tipo é o critério RPS: só é "realizado" o que está comprovado em caixa ou
+ * campo; estimativa de terceiro e projeção dependente de aprovação ficam à parte.
+ */
+export interface LinhaValorGerado {
+  id: string;
+  tipo: "realizado" | "estimado" | "projetado" | "investido";
+  valor: number;
+  /** Ex.: "inadimplência recuperada em setembro/2026" */
+  descricao: string;
+  /** Ex.: "/ano", "/mês" — vazio = valor único. */
+  periodicidade?: string;
+  observacao: string;
 }
 
 /** Slide UTILIDADES E SUSTENTABILIDADE */
@@ -181,14 +253,17 @@ export interface LinhaCapex {
   // desvio % é DERIVADO
 }
 
-/** Slide MATRIZ DE RISCOS E PLANO DE AÇÃO */
+/** Slide MATRIZ DE RISCOS E PLANO DE AÇÃO (action log) */
 export interface LinhaRisco {
   id: string;
   assunto: string;
   criticidade: Criticidade;
+  /** O que acontece se nada for feito. */
+  consequencia?: string;
   acao: string;
   responsavel: string;
   prazo: string; // YYYY-MM-DD
+  status?: "em_andamento" | "concluida" | "outra";
 }
 
 /** Slide PRÓXIMOS PASSOS E DECISÕES */
@@ -212,8 +287,33 @@ export interface Foto {
 /* Corpo do relatório (persistido em relatorios.dados)                         */
 /* -------------------------------------------------------------------------- */
 
+/** Situação das ordens de serviço no período — o "painel de OS" do sistema. */
+export interface SituacaoOS {
+  concluidasNoPrazo: number;
+  concluidasComAtraso: number;
+  abertasNoPrazo: number;
+  abertasAtrasadas: number;
+  canceladas: number;
+}
+
+/** De onde vieram os dados — vira a linha "Fontes:" de cada slide. */
+export interface RegistroImportacao {
+  fonte: string;
+  em: string; // ISO
+  /** Seções preenchidas pela importação (ids de SECOES + "arrecadacao", "os"…). */
+  secoes: string[];
+  avisos: string[];
+}
+
 export interface DadosRelatorio {
-  versao: 3;
+  versao: 5;
+
+  /**
+   * Mês da prestação de contas usada no financeiro (YYYY-MM-01). O RGM de
+   * outubro apresenta o financeiro de setembro — a última prestação fechada.
+   * Vazio = mês anterior à competência (o padrão).
+   */
+  competenciaFinanceira: string;
 
   /** Slide 2 — o texto é do gestor; a tabela de semáforos é derivada. */
   sumario: {
@@ -226,6 +326,10 @@ export interface DadosRelatorio {
     /** Receita, despesa e saldo do mês saem daqui — não são digitados. */
     fundos: LinhaFundo[];
     grupos: LinhaGrupoContabil[];
+    /** Arrecadação da conta ordinária no mês: emitido x recebido. Taxa é derivada. */
+    arrecadacao: { emitido: number; recebido: number };
+    /** Saldo contábil x saldo bancário — conciliação dos fundos. */
+    conciliacao: string;
     comentario: string;
   };
 
@@ -240,6 +344,8 @@ export interface DadosRelatorio {
       /** Ordens programadas que não foram executadas no período. */
       naoRealizadas: number;
     };
+    /** Prazo das OS: concluídas no prazo / com atraso, abertas, canceladas. */
+    situacaoOS: SituacaoOS;
     disciplinas: LinhaDisciplina[];
     acessosFixos: number;
     acessosVisitantes: number;
@@ -255,16 +361,24 @@ export interface DadosRelatorio {
     processos: LinhaProcesso[];
     /** Total consolidado é DERIVADO da soma das rubricas. */
     inadimplencia: { rubricas: LinhaRubricaInadimplencia[] };
+    acordos: LinhaAcordo[];
+    certidoes: LinhaCertidao[];
+    /** Escritório que acompanha os processos. */
+    escritorio: string;
     comentario: string;
   };
 
   utilidades: { linhas: LinhaUtilidade[]; comentario: string };
   capex: { linhas: LinhaCapex[]; comentario: string };
+  valorGerado: { linhas: LinhaValorGerado[] };
   riscos: { linhas: LinhaRisco[]; comentario: string };
   proximosPassos: { linhas: LinhaProximoPasso[]; comentario: string };
 
   fotos: Foto[];
   conclusao: string;
+
+  /** Última importação do LiveFacilities, se houve. */
+  importacao: RegistroImportacao | null;
 }
 
 export const SECOES = [
@@ -277,6 +391,7 @@ export const SECOES = [
   "juridico",
   "utilidades",
   "capex",
+  "valorGerado",
   "riscos",
   "proximosPassos",
   "fotos",

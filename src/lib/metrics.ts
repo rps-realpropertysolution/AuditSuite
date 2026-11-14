@@ -15,19 +15,30 @@ import type {
   Criticidade,
   DadosRelatorio,
   LinhaCapex,
+  LinhaCertidao,
+  LinhaContrato,
   LinhaDocumento,
   LinhaFundo,
   LinhaRubricaInadimplencia,
   LinhaUtilidade,
+  Prognostico,
   Semaforo,
 } from "./types";
 import {
+  competenciaAnterior,
   diasNoMes,
   formatarMoeda,
   formatarNumero,
   formatarPercentual,
   formatarVariacao,
 } from "./format";
+
+/**
+ * Mês da prestação de contas usada no financeiro do relatório. O RGM de
+ * outubro apresenta o financeiro de setembro (última prestação fechada).
+ */
+export const competenciaFinanceira = (r: { competencia: string; dados: DadosRelatorio }) =>
+  r.dados.competenciaFinanceira || competenciaAnterior(r.competencia);
 
 /** Divisão que nunca estoura: sem denominador, o indicador é "não aplicável". */
 const razao = (numerador: number, denominador: number): number | null =>
@@ -120,8 +131,47 @@ export const vacancia = (d: DadosRelatorio) => limitar(100 - d.operacao.ocupacao
 export const totalAcessos = (d: DadosRelatorio) =>
   d.operacao.acessosFixos + d.operacao.acessosVisitantes;
 
+/* --- Ordens de serviço: prazo ------------------------------------------- */
+
+export const totalOS = (d: DadosRelatorio) => {
+  const s = d.operacao.situacaoOS;
+  return s.concluidasNoPrazo + s.concluidasComAtraso + s.abertasNoPrazo + s.abertasAtrasadas + s.canceladas;
+};
+
+/** Concluídas no prazo sobre o total concluído. */
+export const percentualOSNoPrazo = (d: DadosRelatorio) => {
+  const s = d.operacao.situacaoOS;
+  return razao(s.concluidasNoPrazo, s.concluidasNoPrazo + s.concluidasComAtraso);
+};
+
+export const percentualOSCanceladas = (d: DadosRelatorio) =>
+  razao(d.operacao.situacaoOS.canceladas, totalOS(d));
+
+/* --- Arrecadação do mês ---------------------------------------------------- */
+
+/** Em aberto do mês sobre o emitido no mês (conta ordinária). */
+export const taxaInadimplenciaMes = (d: DadosRelatorio) => {
+  const { emitido, recebido } = d.financeiro.arrecadacao;
+  return emitido > 0 ? (Math.max(emitido - recebido, 0) / emitido) * 100 : null;
+};
+
+/* --- Prazos ------------------------------------------------------------------ */
+
+/** Janela de alerta de documentos — parâmetro corporativo RPS. */
+export const DIAS_ALERTA_DOCUMENTO = 90;
+/** Janela de renovação de contratos — parâmetro corporativo RPS. */
+export const DIAS_ALERTA_CONTRATO = 120;
+
+export const diasAte = (iso: string, hoje: Date): number | null => {
+  const [ano, mes, dia] = (iso || "").split("T")[0].split("-").map(Number);
+  if (!ano || !mes || !dia) return null;
+  const alvo = Date.UTC(ano, mes - 1, dia);
+  const ref = Date.UTC(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
+  return Math.round((alvo - ref) / 86_400_000);
+};
+
 export type SituacaoDocumento = {
-  rotulo: "Vigente" | "A vencer" | "Vencido" | "Sem data";
+  rotulo: "Vigente" | "A vencer" | "Vencido" | "Sem data" | "Permanente";
   semaforo: Semaforo;
   diasRestantes: number | null;
 };
@@ -131,33 +181,53 @@ export type SituacaoDocumento = {
  * Antes o gestor digitava "Vigente" e o texto podia contradizer a validade.
  */
 export const situacaoDocumento = (doc: LinhaDocumento, hoje = new Date()): SituacaoDocumento => {
-  if (!doc.validade) return { rotulo: "Sem data", semaforo: "amarelo", diasRestantes: null };
+  if (doc.permanente) return { rotulo: "Permanente", semaforo: "verde", diasRestantes: null };
 
-  const [ano, mes, dia] = doc.validade.split("-").map(Number);
-  if (!ano || !mes || !dia) return { rotulo: "Sem data", semaforo: "amarelo", diasRestantes: null };
-
-  const venc = Date.UTC(ano, mes - 1, dia);
-  const ref = Date.UTC(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
-  const dias = Math.round((venc - ref) / 86_400_000);
+  const dias = diasAte(doc.validade, hoje);
+  if (dias === null) return { rotulo: "Sem data", semaforo: "amarelo", diasRestantes: null };
 
   if (dias < 0) return { rotulo: "Vencido", semaforo: "vermelho", diasRestantes: dias };
-  if (dias <= 60) return { rotulo: "A vencer", semaforo: "amarelo", diasRestantes: dias };
+  if (dias <= DIAS_ALERTA_DOCUMENTO) return { rotulo: "A vencer", semaforo: "amarelo", diasRestantes: dias };
   return { rotulo: "Vigente", semaforo: "verde", diasRestantes: dias };
 };
 
-export const contarContratos = (d: DadosRelatorio) => ({
-  vigentes: d.contratos.linhas.filter((c) => c.situacao === "vigente").length,
-  vencidos: d.contratos.linhas.filter((c) => c.situacao === "vencido").length,
-  emRenovacao: d.contratos.linhas.filter((c) => c.situacao === "em_renovacao").length,
-});
+/**
+ * Situação do contrato. Com data de término, ela manda — o texto digitado
+ * pode ficar desatualizado, a data não. Sem data, vale o que o gestor marcou.
+ */
+export const situacaoContrato = (
+  c: LinhaContrato,
+  hoje = new Date(),
+): { situacao: LinhaContrato["situacao"]; diasRestantes: number | null } => {
+  const dias = diasAte(c.vencimento, hoje);
+  if (dias === null) return { situacao: c.situacao, diasRestantes: null };
+  if (dias < 0) return { situacao: "vencido", diasRestantes: dias };
+  if (dias <= DIAS_ALERTA_CONTRATO) return { situacao: "em_renovacao", diasRestantes: dias };
+  return { situacao: "vigente", diasRestantes: dias };
+};
+
+export const contarContratos = (d: DadosRelatorio, hoje = new Date()) => {
+  const s = d.contratos.linhas.map((c) => situacaoContrato(c, hoje).situacao);
+  return {
+    vigentes: s.filter((x) => x === "vigente").length,
+    vencidos: s.filter((x) => x === "vencido").length,
+    emRenovacao: s.filter((x) => x === "em_renovacao").length,
+  };
+};
 
 export const contarDocumentos = (d: DadosRelatorio, hoje = new Date()) => {
   const s = d.documentos.linhas.map((doc) => situacaoDocumento(doc, hoje));
+  const permanentes = s.filter((x) => x.rotulo === "Permanente").length;
+  const vigentes = s.filter((x) => x.rotulo === "Vigente").length;
   return {
-    vigentes: s.filter((x) => x.semaforo === "verde").length,
+    vigentes,
+    permanentes,
     aVencer: s.filter((x) => x.rotulo === "A vencer").length,
     vencidos: s.filter((x) => x.rotulo === "Vencido").length,
+    semData: s.filter((x) => x.rotulo === "Sem data").length,
     total: s.length,
+    /** "Em dia" = vigentes + permanentes, como no RGM corporativo. */
+    percentualEmDia: razao(vigentes + permanentes, s.length),
   };
 };
 
@@ -240,8 +310,19 @@ export const indicadores360 = (d: DadosRelatorio, hoje = new Date()): Indicador3
   // senão cai na contagem das ocorrências descritas manualmente.
   const executadas = totalManutencoes(d);
   const realizado = percentualRealizado(d);
+  const noPrazo = percentualOSNoPrazo(d);
+  const atrasadas = d.operacao.situacaoOS.abertasAtrasadas;
 
-  if (executadas > 0 && realizado !== null) {
+  if (noPrazo !== null) {
+    lista.push({
+      id: "operacao",
+      rotulo: "Desempenho operacional",
+      valor: `${formatarNumero(noPrazo, 1)}% das OS no prazo · ${atrasadas} em atraso`,
+      semaforo: noPrazo >= 90 ? "verde" : noPrazo >= 75 ? "amarelo" : "vermelho",
+      criterio: "Verde: 90% ou mais das OS concluídas no prazo. Amarelo: a partir de 75%.",
+      secao: "Operação",
+    });
+  } else if (executadas > 0 && realizado !== null) {
     lista.push({
       id: "operacao",
       rotulo: "Desempenho operacional",
@@ -278,13 +359,13 @@ export const indicadores360 = (d: DadosRelatorio, hoje = new Date()): Indicador3
       rotulo: "Documentos legais",
       valor: `${doc.vencidos} vencidos / ${doc.aVencer} a vencer`,
       semaforo: doc.vencidos > 0 ? "vermelho" : doc.aVencer > 0 ? "amarelo" : "verde",
-      criterio: "Vermelho: qualquer documento vencido. Amarelo: algum vence em até 60 dias.",
+      criterio: `Vermelho: qualquer documento vencido. Amarelo: algum vence em até ${DIAS_ALERTA_DOCUMENTO} dias.`,
       secao: "Documentos",
     });
   }
 
   // 6. Contratos
-  const ctr = contarContratos(d);
+  const ctr = contarContratos(d, hoje);
   if (d.contratos.linhas.length === 0) {
     lista.push(semDado("contratos", "Contratos", "Contratos"));
   } else {
@@ -293,7 +374,7 @@ export const indicadores360 = (d: DadosRelatorio, hoje = new Date()): Indicador3
       rotulo: "Contratos",
       valor: `${ctr.vigentes} vigentes / ${ctr.vencidos} vencido${ctr.vencidos === 1 ? "" : "s"}`,
       semaforo: ctr.vencidos > 0 ? "vermelho" : ctr.emRenovacao > 0 ? "amarelo" : "verde",
-      criterio: "Vermelho: contrato vencido em vigor. Amarelo: renovação pendente.",
+      criterio: `Vermelho: contrato vencido. Amarelo: término em até ${DIAS_ALERTA_CONTRATO} dias.`,
       secao: "Contratos",
     });
   }
@@ -530,7 +611,7 @@ export const calcularAlertas = (d: DadosRelatorio, hoje = new Date()): Alerta[] 
   });
 
   d.contratos.linhas.forEach((c) => {
-    if (c.situacao === "vencido") {
+    if (situacaoContrato(c, hoje).situacao === "vencido") {
       alertas.push({
         id: `ctr-${c.id}`,
         severidade: "vermelho",
@@ -620,13 +701,18 @@ export const progressoSecoes = (d: DadosRelatorio): Record<string, boolean> => (
   sumario: preenchido(d.sumario.avaliacaoGeral),
   financeiro: d.financeiro.fundos.some((f) => f.creditos > 0 || f.debitos > 0 || f.anterior > 0),
   operacao:
-    d.operacao.ocorrencias.length > 0 || d.operacao.ocupacao > 0 || totalManutencoes(d) > 0,
+    d.operacao.ocorrencias.length > 0 ||
+    d.operacao.ocupacao > 0 ||
+    totalManutencoes(d) > 0 ||
+    totalOS(d) > 0,
   fornecedores: d.fornecedores.linhas.length > 0,
   contratos: d.contratos.linhas.length > 0,
-  documentos: d.documentos.linhas.some((l) => Boolean(l.validade)),
-  juridico: d.juridico.processos.length > 0 || inadimplenciaTotal(d) !== 0,
+  documentos: d.documentos.linhas.some((l) => Boolean(l.validade) || l.permanente),
+  juridico:
+    d.juridico.processos.length > 0 || inadimplenciaTotal(d) !== 0 || d.juridico.acordos.length > 0,
   utilidades: d.utilidades.linhas.some((l) => l.consumo > 0),
   capex: d.capex.linhas.length > 0,
+  valorGerado: d.valorGerado.linhas.length > 0,
   riscos: d.riscos.linhas.length > 0,
   proximosPassos: d.proximosPassos.linhas.length > 0,
   fotos: d.fotos.length > 0,
@@ -637,3 +723,49 @@ export const percentualPreenchido = (d: DadosRelatorio) => {
   const secoes = Object.values(progressoSecoes(d));
   return Math.round((secoes.filter(Boolean).length / secoes.length) * 100);
 };
+
+/* -------------------------------------------------------------------------- */
+/* Plano de ação, jurídico e fundo de reserva (template corporativo RPS)        */
+/* -------------------------------------------------------------------------- */
+
+/** Action log: quantas ações do plano já foram concluídas. */
+export const resumoPlanoAcao = (d: DadosRelatorio) => {
+  const linhas = d.riscos.linhas;
+  const concluidas = linhas.filter((r) => r.status === "concluida").length;
+  const emAndamento = linhas.filter((r) => (r.status ?? "em_andamento") === "em_andamento").length;
+  const outras = linhas.length - concluidas - emAndamento;
+  return { total: linhas.length, concluidas, emAndamento, outras, percentual: razao(concluidas, linhas.length) };
+};
+
+export type SituacaoCertidao = "regular" | "vencida" | "positiva" | "nao_informada";
+
+export const situacaoCertidao = (c: LinhaCertidao, hoje = new Date()): SituacaoCertidao => {
+  if (c.positiva) return "positiva";
+  const dias = diasAte(c.validade, hoje);
+  if (dias === null) return "nao_informada";
+  return dias < 0 ? "vencida" : "regular";
+};
+
+export const contarCertidoes = (d: DadosRelatorio, hoje = new Date()) => {
+  const s = d.juridico.certidoes.map((c) => ({ c, s: situacaoCertidao(c, hoje) }));
+  return {
+    total: s.length,
+    regulares: s.filter((x) => x.s === "regular").length,
+    pendentes: s.filter((x) => x.s !== "regular").map((x) => x.c.certidao),
+  };
+};
+
+/** Soma do valor da causa por prognóstico. null = nenhum processo com valor/prognóstico apurado. */
+export const riscoJuridico = (d: DadosRelatorio) => {
+  const soma = (p: Prognostico) =>
+    d.juridico.processos.filter((x) => x.prognostico === p && (x.valor ?? 0) > 0).reduce((s, x) => s + (x.valor ?? 0), 0);
+  const apurados = d.juridico.processos.filter((x) => x.prognostico && x.prognostico !== "nao_apurado" && (x.valor ?? 0) > 0);
+  return {
+    provavel: apurados.length ? soma("provavel") : null,
+    possivel: apurados.length ? soma("possivel") : null,
+    semApuracao: d.juridico.processos.length - apurados.length,
+  };
+};
+
+/** O fundo de reserva, quando o relatório tem a abertura por fundo. */
+export const fundoDeReserva = (d: DadosRelatorio) => d.financeiro.fundos.find((f) => /reserva/i.test(f.fundo));
