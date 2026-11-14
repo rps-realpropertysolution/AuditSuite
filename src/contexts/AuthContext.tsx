@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import type { Papel, Perfil } from "@/lib/types";
+import { PAPEIS_INTERNOS, type Papel, type Perfil } from "@/lib/types";
 
 interface AuthContextValue {
   user: User | null;
@@ -95,7 +95,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // autorizado. Preferir o estado de carregamento a errar para o lado
       // permissivo. (A RLS no banco barra de qualquer forma; isto é a camada
       // de interface, que deve concordar com ela.)
-      interno: papeis.some((p) => p === "diretoria" || p === "gestor"),
+      interno: papeis.some((p) => PAPEIS_INTERNOS.includes(p)),
       pendente: papeisCarregados && papeis.length === 0,
       // Só termina de carregar quando os papéis chegaram: o roteador precisa
       // deles para decidir entre a aplicação e a tela de acesso em análise.

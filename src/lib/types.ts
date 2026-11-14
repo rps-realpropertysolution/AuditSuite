@@ -407,4 +407,7 @@ export interface Perfil {
   cargo: string | null;
 }
 
-export type Papel = "diretoria" | "gestor" | "sindico" | "proprietario";
+export type Papel = "administrador" | "diretoria" | "gestor" | "sindico" | "proprietario";
+
+/** Papéis do time RPS — enxergam e editam todos os empreendimentos. */
+export const PAPEIS_INTERNOS: Papel[] = ["administrador", "diretoria", "gestor"];

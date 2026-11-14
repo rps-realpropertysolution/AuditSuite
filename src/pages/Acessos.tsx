@@ -25,6 +25,7 @@ import { formatarData } from "@/lib/format";
 import type { Papel } from "@/lib/types";
 
 const ROTULO_PAPEL: Record<Papel, string> = {
+  administrador: "Administrador",
   diretoria: "Diretoria",
   gestor: "Gestor RPS",
   sindico: "Síndico",
@@ -32,6 +33,7 @@ const ROTULO_PAPEL: Record<Papel, string> = {
 };
 
 const ESTILO_PAPEL: Record<Papel, string> = {
+  administrador: "bg-foreground text-background",
   diretoria: "bg-executive text-executive-foreground",
   gestor: "bg-primary/10 text-primary",
   sindico: "bg-secondary/15 text-foreground",
@@ -40,7 +42,10 @@ const ESTILO_PAPEL: Record<Papel, string> = {
 
 const Acessos = () => {
   const { interno, papeis, user } = useAuth();
-  const ehDiretoria = papeis.includes("diretoria");
+  const ehAdministrador = papeis.includes("administrador");
+  const ehDiretoria = ehAdministrador || papeis.includes("diretoria");
+  // Só o administrador mexe no papel de administrador (a RLS garante o mesmo).
+  const podeGerir = (p: Papel) => ehDiretoria && (p !== "administrador" || ehAdministrador);
   const { data: usuarios = [], isLoading, error } = useUsuarios();
   const { data: empreendimentos = [] } = useEmpreendimentos();
   const conceder = useConcederPapel();
@@ -84,7 +89,11 @@ const Acessos = () => {
 
   const Linha = ({ u }: { u: UsuarioAcesso }) => {
     const externo = u.papeis.some((p) => p === "sindico" || p === "proprietario") || u.papeis.length === 0;
-    const disponiveis = (["sindico", "proprietario", "gestor", "diretoria"] as Papel[]).filter((p) => !u.papeis.includes(p));
+    const disponiveis = (["sindico", "proprietario", "gestor", "diretoria", "administrador"] as Papel[]).filter(
+      (p) => !u.papeis.includes(p) && podeGerir(p),
+    );
+    // Ninguém tira de si o papel que lhe dá acesso à gestão de acessos.
+    const proprio = (p: Papel) => u.id === user?.id && (p === "diretoria" || p === "administrador");
     return (
       <tr className="border-t border-border align-top">
         <td className="px-4 py-3">
@@ -102,7 +111,7 @@ const Acessos = () => {
               u.papeis.map((p) => (
                 <span key={p} className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold ${ESTILO_PAPEL[p]}`}>
                   {ROTULO_PAPEL[p]}
-                  {ehDiretoria && !(u.id === user?.id && p === "diretoria") ? (
+                  {podeGerir(p) && !proprio(p) ? (
                     <button
                       type="button"
                       aria-label={`Revogar ${ROTULO_PAPEL[p]}`}
@@ -122,7 +131,7 @@ const Acessos = () => {
               onChange={(e) => {
                 const papel = e.target.value as Papel;
                 if (!papel) return;
-                if ((papel === "gestor" || papel === "diretoria") && !u.email.toLowerCase().endsWith("@rpsglobal.com.br")) {
+                if ((papel === "gestor" || papel === "diretoria" || papel === "administrador") && !u.email.toLowerCase().endsWith("@rpsglobal.com.br")) {
                   if (!window.confirm(`${u.email} não é do domínio da RPS. Conceder "${ROTULO_PAPEL[papel]}" dá acesso a TODOS os empreendimentos. Confirmar?`)) return;
                 }
                 void executar(() => conceder.mutateAsync({ userId: u.id, papel }));
