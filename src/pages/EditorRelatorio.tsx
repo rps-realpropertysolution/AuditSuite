@@ -242,6 +242,7 @@ const EditorRelatorio = () => {
             competenciaFinanceira: competenciaFinanceira({ competencia: relatorio.competencia, dados }),
             cdCondominio: emp?.lf_cd_condominio ?? null,
           }}
+          nomeEmpreendimento={emp?.nome}
           onAplicar={(novos) => {
             setDados(novos);
             setImportandoArquivos(false);
