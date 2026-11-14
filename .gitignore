@@ -34,3 +34,13 @@ public/templates/
 *.njsproj
 *.sln
 *.sw?
+
+# Relatórios reais de cliente (PPTX/PDF de exemplo) — nunca versionar.
+*.pptx
+*.pdf
+
+# Respostas brutas do LiveFacilities salvas pelo script de teste (dados de cliente)
+scripts/livefacilities/saida/
+
+# Estado local do Supabase CLI (project-ref, URL do pooler) — gerado por "supabase link"
+supabase/.temp/

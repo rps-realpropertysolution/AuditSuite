@@ -7,16 +7,35 @@
  * trabalho mensal deixa de ser "montar o relatório" e vira "atualizar números".
  */
 
-import type { DadosRelatorio, Foto } from "./types";
+import type { DadosRelatorio, Foto, LinhaCertidao } from "./types";
+
 
 export const novoId = () =>
   typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID()
     : `id-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
+/** As cinco certidões do condomínio que o RGM corporativo acompanha. */
+export const certidoesPadrao = (): LinhaCertidao[] => [
+  { id: novoId(), certidao: "CND Federal e Dívida Ativa da União", orgao: "Receita Federal / PGFN", validade: "" },
+  { id: novoId(), certidao: "CRF — Regularidade do FGTS", orgao: "Caixa Econômica Federal", validade: "" },
+  { id: novoId(), certidao: "CNDT — Débitos Trabalhistas", orgao: "Tribunal Superior do Trabalho", validade: "" },
+  { id: novoId(), certidao: "CND Estadual", orgao: "Secretaria da Fazenda do Estado", validade: "" },
+  { id: novoId(), certidao: "CND Municipal", orgao: "Prefeitura Municipal", validade: "" },
+];
+
 /** Relatório em branco com o esqueleto típico de um ativo administrado. */
+const situacaoOSZerada = () => ({
+  concluidasNoPrazo: 0,
+  concluidasComAtraso: 0,
+  abertasNoPrazo: 0,
+  abertasAtrasadas: 0,
+  canceladas: 0,
+});
+
 export const relatorioEmBranco = (): DadosRelatorio => ({
-  versao: 3,
+  versao: 5,
+  competenciaFinanceira: "",
   sumario: { avaliacaoGeral: "", principaisResultados: [], pontosAtencao: [] },
   financeiro: {
     fundos: [
@@ -31,11 +50,14 @@ export const relatorioEmBranco = (): DadosRelatorio => ({
       { id: novoId(), grupo: "Limpeza e sanificação", orcado: 0, realizado: 0, observacao: "" },
       { id: novoId(), grupo: "Despesas administrativas", orcado: 0, realizado: 0, observacao: "" },
     ],
+    arrecadacao: { emitido: 0, recebido: 0 },
+    conciliacao: "",
     comentario: "",
   },
   operacao: {
     ocorrencias: [],
     resumo: { preventivas: 0, corretivas: 0, acompanhamentos: 0, rondas: 0, naoRealizadas: 0 },
+    situacaoOS: situacaoOSZerada(),
     disciplinas: [
       { id: novoId(), disciplina: "Elétrica", quantidade: 0 },
       { id: novoId(), disciplina: "Hidráulica", quantidade: 0 },
@@ -67,6 +89,9 @@ export const relatorioEmBranco = (): DadosRelatorio => ({
         { id: novoId(), rubrica: "Fundo privativo / reembolsável", ateAnterior: 0, recebido: 0, doMes: 0 },
       ],
     },
+    acordos: [],
+    certidoes: certidoesPadrao(),
+    escritorio: "",
     comentario: "",
   },
   utilidades: {
@@ -77,10 +102,12 @@ export const relatorioEmBranco = (): DadosRelatorio => ({
     comentario: "",
   },
   capex: { linhas: [], comentario: "" },
+  valorGerado: { linhas: [] },
   riscos: { linhas: [], comentario: "" },
   proximosPassos: { linhas: [], comentario: "" },
   fotos: [],
   conclusao: "",
+  importacao: null,
 });
 
 /**
@@ -93,7 +120,8 @@ export const relatorioEmBranco = (): DadosRelatorio => ({
  * fatura do mês viram a base de comparação — a variação se monta sozinha.
  */
 export const herdarDoMesAnterior = (ant: DadosRelatorio): DadosRelatorio => ({
-  versao: 3,
+  versao: 5,
+  competenciaFinanceira: "",
   sumario: { avaliacaoGeral: "", principaisResultados: [], pontosAtencao: [] },
   financeiro: {
     // Encadeamento contábil por fundo: o saldo de fechamento abre o mês seguinte
@@ -111,11 +139,14 @@ export const herdarDoMesAnterior = (ant: DadosRelatorio): DadosRelatorio => ({
       realizado: 0,
       observacao: "",
     })),
+    arrecadacao: { emitido: 0, recebido: 0 },
+    conciliacao: "",
     comentario: "",
   },
   operacao: {
     ocorrencias: [], // ocorrências são sempre do mês
     resumo: { preventivas: 0, corretivas: 0, acompanhamentos: 0, rondas: 0, naoRealizadas: 0 },
+    situacaoOS: situacaoOSZerada(),
     // as disciplinas acompanhadas continuam; só a contagem zera
     disciplinas: ant.operacao.disciplinas.map((d) => ({ ...d, id: novoId(), quantidade: 0 })),
     acessosFixos: 0,
@@ -149,6 +180,13 @@ export const herdarDoMesAnterior = (ant: DadosRelatorio): DadosRelatorio => ({
         doMes: 0,
       })),
     },
+    // acordos em curso continuam sendo acompanhados até a quitação
+    acordos: ant.juridico.acordos
+      .filter((a) => !/quitad|cancel|encerrad/i.test(a.status))
+      .map((a) => ({ ...a, id: novoId() })),
+    // certidões e escritório seguem; a validade se recalcula pela data
+    certidoes: ant.juridico.certidoes.map((c) => ({ ...c, id: novoId() })),
+    escritorio: ant.juridico.escritorio,
     comentario: "",
   },
   utilidades: {
@@ -174,8 +212,13 @@ export const herdarDoMesAnterior = (ant: DadosRelatorio): DadosRelatorio => ({
       .map((c) => ({ ...c, id: novoId() })),
     comentario: "",
   },
+  // valor gerado é do período; projeções ainda não realizadas continuam no radar
+  valorGerado: {
+    linhas: ant.valorGerado.linhas.filter((v) => v.tipo === "projetado").map((v) => ({ ...v, id: novoId() })),
+  },
   riscos: {
-    linhas: ant.riscos.linhas.map((r) => ({ ...r, id: novoId() })),
+    // o action log continua; o que foi concluído no mês passado sai
+    linhas: ant.riscos.linhas.filter((r) => r.status !== "concluida").map((r) => ({ ...r, id: novoId() })),
     comentario: "",
   },
   proximosPassos: {
@@ -187,6 +230,7 @@ export const herdarDoMesAnterior = (ant: DadosRelatorio): DadosRelatorio => ({
   },
   fotos: [],
   conclusao: "",
+  importacao: null,
 });
 
 /* -------------------------------------------------------------------------- */
@@ -248,7 +292,8 @@ export const normalizarDados = (bruto: unknown): DadosRelatorio => {
       : [];
 
   return {
-    versao: 3,
+    versao: 5,
+    competenciaFinanceira: /^\d{4}-\d{2}-01$/.test(txt(d.competenciaFinanceira)) ? txt(d.competenciaFinanceira) : "",
     sumario: {
       avaliacaoGeral: txt(d.sumario?.avaliacaoGeral),
       principaisResultados: lista<string>(d.sumario?.principaisResultados).filter(
@@ -277,6 +322,11 @@ export const normalizarDados = (bruto: unknown): DadosRelatorio => {
             observacao: txt(g?.observacao),
           }))
         : base.financeiro.grupos,
+      arrecadacao: {
+        emitido: num(d.financeiro?.arrecadacao?.emitido),
+        recebido: num(d.financeiro?.arrecadacao?.recebido),
+      },
+      conciliacao: txt(d.financeiro?.conciliacao),
       comentario: txt(d.financeiro?.comentario),
     },
     operacao: {
@@ -294,6 +344,13 @@ export const normalizarDados = (bruto: unknown): DadosRelatorio => {
         acompanhamentos: num(d.operacao?.resumo?.acompanhamentos),
         rondas: num(d.operacao?.resumo?.rondas),
         naoRealizadas: num(d.operacao?.resumo?.naoRealizadas),
+      },
+      situacaoOS: {
+        concluidasNoPrazo: num(d.operacao?.situacaoOS?.concluidasNoPrazo),
+        concluidasComAtraso: num(d.operacao?.situacaoOS?.concluidasComAtraso),
+        abertasNoPrazo: num(d.operacao?.situacaoOS?.abertasNoPrazo),
+        abertasAtrasadas: num(d.operacao?.situacaoOS?.abertasAtrasadas),
+        canceladas: num(d.operacao?.situacaoOS?.canceladas),
       },
       disciplinas: Array.isArray(d.operacao?.disciplinas)
         ? lista<Record<string, unknown>>(d.operacao.disciplinas).map((x) => ({
@@ -337,6 +394,7 @@ export const normalizarDados = (bruto: unknown): DadosRelatorio => {
             documento: txt(l?.documento),
             orgao: txt(l?.orgao),
             validade: txt(l?.validade),
+            permanente: bool(l?.permanente),
             observacao: txt(l?.observacao),
           }))
         : base.documentos.linhas,
@@ -347,10 +405,13 @@ export const normalizarDados = (bruto: unknown): DadosRelatorio => {
         id: txt(p?.id, novoId()),
         numero: txt(p?.numero),
         vara: txt(p?.vara),
+        tipo: txt(p?.tipo),
         objeto: txt(p?.objeto),
         andamento: txt(p?.andamento),
         proximaData: txt(p?.proximaData),
         criticidade: umDe(p?.criticidade, CRITICIDADES, "media"),
+        valor: num(p?.valor),
+        prognostico: umDe(p?.prognostico, ["provavel", "possivel", "remoto", "nao_apurado"] as const, "nao_apurado"),
       })),
       inadimplencia: {
         rubricas: temRubricas
@@ -365,6 +426,26 @@ export const normalizarDados = (bruto: unknown): DadosRelatorio => {
             ? rubricasMigradas
             : base.juridico.inadimplencia.rubricas,
       },
+      acordos: lista<Record<string, unknown>>(d.juridico?.acordos).map((a) => ({
+        id: txt(a?.id, novoId()),
+        unidade: txt(a?.unidade),
+        devedor: txt(a?.devedor),
+        parcelas: num(a?.parcelas),
+        parcelasPagas: num(a?.parcelasPagas),
+        valor: num(a?.valor),
+        valorPago: num(a?.valorPago),
+        status: txt(a?.status),
+      })),
+      certidoes: Array.isArray(d.juridico?.certidoes)
+        ? lista<Record<string, unknown>>(d.juridico!.certidoes).map((c) => ({
+            id: txt(c?.id, novoId()),
+            certidao: txt(c?.certidao),
+            orgao: txt(c?.orgao),
+            validade: txt(c?.validade),
+            positiva: bool(c?.positiva),
+          }))
+        : base.juridico.certidoes,
+      escritorio: txt(d.juridico?.escritorio),
       comentario: txt(d.juridico?.comentario),
     },
     utilidades: {
@@ -397,14 +478,26 @@ export const normalizarDados = (bruto: unknown): DadosRelatorio => {
       })),
       comentario: txt(d.capex?.comentario),
     },
+    valorGerado: {
+      linhas: lista<Record<string, unknown>>(d.valorGerado?.linhas).map((v) => ({
+        id: txt(v?.id, novoId()),
+        tipo: umDe(v?.tipo, ["realizado", "estimado", "projetado", "investido"] as const, "realizado"),
+        valor: num(v?.valor),
+        descricao: txt(v?.descricao),
+        periodicidade: txt(v?.periodicidade),
+        observacao: txt(v?.observacao),
+      })),
+    },
     riscos: {
       linhas: lista<Record<string, unknown>>(d.riscos?.linhas).map((r) => ({
         id: txt(r?.id, novoId()),
         assunto: txt(r?.assunto),
         criticidade: umDe(r?.criticidade, CRITICIDADES, "media"),
+        consequencia: txt(r?.consequencia),
         acao: txt(r?.acao),
         responsavel: txt(r?.responsavel),
         prazo: txt(r?.prazo),
+        status: umDe(r?.status, ["em_andamento", "concluida", "outra"] as const, "em_andamento"),
       })),
       comentario: txt(d.riscos?.comentario),
     },
@@ -431,5 +524,18 @@ export const normalizarDados = (bruto: unknown): DadosRelatorio => {
         ),
       })),
     conclusao: txt(d.conclusao),
+    importacao: normalizarImportacao(d.importacao),
+  };
+};
+
+const normalizarImportacao = (v: unknown): DadosRelatorio["importacao"] => {
+  if (!v || typeof v !== "object") return null;
+  const i = v as Record<string, unknown>;
+  if (typeof i.em !== "string") return null;
+  return {
+    fonte: txt(i.fonte, "LiveFacilities"),
+    em: i.em,
+    secoes: lista<string>(i.secoes).filter((x) => typeof x === "string"),
+    avisos: lista<string>(i.avisos).filter((x) => typeof x === "string"),
   };
 };

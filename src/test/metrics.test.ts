@@ -75,7 +75,7 @@ describe("situacaoDocumento — status derivado da data", () => {
     expect(s.semaforo).toBe("vermelho");
   });
 
-  it("marca como a vencer o que expira em até 60 dias", () => {
+  it("marca como a vencer o que expira dentro da janela de alerta (90 dias)", () => {
     const s = situacaoDocumento(doc("2026-09-10"), HOJE);
     expect(s.rotulo).toBe("A vencer");
     expect(s.semaforo).toBe("amarelo");
@@ -323,9 +323,9 @@ describe("herdarDoMesAnterior — o que corta a redigitação", () => {
 
 describe("normalizarDados — tolerância a dados antigos ou corrompidos", () => {
   it("devolve o relatório em branco quando o JSON é lixo", () => {
-    expect(normalizarDados(null).versao).toBe(3);
-    expect(normalizarDados("texto solto").versao).toBe(3);
-    expect(normalizarDados(42).versao).toBe(3);
+    expect(normalizarDados(null).versao).toBe(5);
+    expect(normalizarDados("texto solto").versao).toBe(5);
+    expect(normalizarDados(42).versao).toBe(5);
   });
 
   it("preserva o que reconhece e ignora o resto", () => {
@@ -344,7 +344,7 @@ describe("normalizarDados — tolerância a dados antigos ou corrompidos", () =>
       juridico: { inadimplencia: { posicaoAnterior: 58_041.37, recebidoNoMes: 3_124.41, emAtrasoNoMes: 9_898.19 } },
     });
 
-    expect(d.versao).toBe(3);
+    expect(d.versao).toBe(5);
     expect(receitaTotal(d)).toBeCloseTo(301_450.4, 2);
     expect(despesaTotal(d)).toBeCloseTo(324_773.29, 2);
     expect(saldoTotal(d)).toBeCloseTo(222_307.17, 2);
@@ -366,5 +366,56 @@ describe("competenciaAnterior", () => {
 
   it("vira o ano corretamente", () => {
     expect(competenciaAnterior("2026-01-01")).toBe("2025-12-01");
+  });
+});
+
+describe("template corporativo — competência financeira, plano de ação, jurídico", () => {
+  it("o financeiro é o mês anterior por padrão e pode ser escolhido", async () => {
+    const { competenciaFinanceira } = await import("@/lib/metrics");
+    const d = relatorioEmBranco();
+    expect(competenciaFinanceira({ competencia: "2026-10-01", dados: d })).toBe("2026-09-01");
+    expect(competenciaFinanceira({ competencia: "2026-01-01", dados: d })).toBe("2025-12-01");
+    d.competenciaFinanceira = "2026-10-01";
+    expect(competenciaFinanceira({ competencia: "2026-10-01", dados: d })).toBe("2026-10-01");
+  });
+
+  it("calcula o % de ações concluídas e o mês seguinte herda só as abertas", async () => {
+    const { resumoPlanoAcao } = await import("@/lib/metrics");
+    const d = relatorioEmBranco();
+    const acao = (status: "em_andamento" | "concluida" | "outra") => ({
+      id: novoId(), assunto: "x", criticidade: "media" as const, acao: "", responsavel: "", prazo: "", status,
+    });
+    d.riscos.linhas = [acao("concluida"), acao("concluida"), acao("concluida"), acao("em_andamento"), acao("outra")];
+    expect(resumoPlanoAcao(d)).toMatchObject({ total: 5, concluidas: 3, emAndamento: 1, outras: 1, percentual: 60 });
+    expect(herdarDoMesAnterior(d).riscos.linhas).toHaveLength(2);
+  });
+
+  it("certidões: sem data é 'não informada', vencida e positiva são pendência", async () => {
+    const { contarCertidoes, situacaoCertidao } = await import("@/lib/metrics");
+    const d = relatorioEmBranco();
+    expect(d.juridico.certidoes).toHaveLength(5);
+    d.juridico.certidoes[0].validade = "2027-03-25";
+    d.juridico.certidoes[1].validade = "2026-07-01";
+    d.juridico.certidoes[2].validade = "2027-01-01";
+    d.juridico.certidoes[2].positiva = true;
+    expect(situacaoCertidao(d.juridico.certidoes[0], HOJE)).toBe("regular");
+    expect(situacaoCertidao(d.juridico.certidoes[1], HOJE)).toBe("vencida");
+    expect(situacaoCertidao(d.juridico.certidoes[2], HOJE)).toBe("positiva");
+    expect(situacaoCertidao(d.juridico.certidoes[3], HOJE)).toBe("nao_informada");
+    expect(contarCertidoes(d, HOJE)).toMatchObject({ total: 5, regulares: 1 });
+    // certidões seguem para o mês seguinte com a validade
+    expect(herdarDoMesAnterior(d).juridico.certidoes[0].validade).toBe("2027-03-25");
+  });
+
+  it("risco jurídico só soma o que tem valor e prognóstico", async () => {
+    const { riscoJuridico } = await import("@/lib/metrics");
+    const d = relatorioEmBranco();
+    const proc = (valor: number, prognostico: "provavel" | "possivel" | "remoto" | "nao_apurado") => ({
+      id: novoId(), numero: "", vara: "", objeto: "", andamento: "", proximaData: "", criticidade: "media" as const, valor, prognostico,
+    });
+    d.juridico.processos = [proc(0, "nao_apurado"), proc(0, "nao_apurado")];
+    expect(riscoJuridico(d)).toEqual({ provavel: null, possivel: null, semApuracao: 2 });
+    d.juridico.processos.push(proc(50_000, "provavel"), proc(20_000, "possivel"));
+    expect(riscoJuridico(d)).toEqual({ provavel: 50_000, possivel: 20_000, semApuracao: 2 });
   });
 });

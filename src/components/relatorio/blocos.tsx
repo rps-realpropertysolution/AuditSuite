@@ -231,7 +231,7 @@ export const ComentarioGestor = ({
           value={valor}
           onChange={(e) => onChange(e.target.value)}
           rows={3}
-          placeholder="Explique os desvios, o risco e o que será feito."
+          placeholder="Fato, causa, impacto e ação recomendada. Uma linha por tópico; use 'Destaque: texto' para negrito."
           className="w-full rounded-md border border-input bg-background p-3 text-sm leading-relaxed outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
         />
       </label>

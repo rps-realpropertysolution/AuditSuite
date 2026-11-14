@@ -1,14 +1,17 @@
 import { useState } from "react";
-import { Archive, ArchiveRestore, Building2, Loader2, Pencil, Plus, X } from "lucide-react";
+import { Archive, ArchiveRestore, Building2, CloudDownload, ImagePlus, Loader2, Pencil, Plus, X } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
-import { Campo, CampoNumero, CampoSelecao, CampoTexto } from "@/components/campos";
+import { Campo, CampoListaBullets, CampoNumero, CampoSelecao, CampoTexto } from "@/components/campos";
+import { BUCKET_FOTOS, supabase } from "@/integrations/supabase/client";
+import { novoId } from "@/lib/defaults";
+import { SincronizarLF } from "@/components/SincronizarLF";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   useArquivarEmpreendimento,
   useEmpreendimentos,
   useSalvarEmpreendimento,
 } from "@/hooks/useEmpreendimentos";
-import type { Empreendimento } from "@/lib/types";
+import type { Empreendimento, FichaEmpreendimento } from "@/lib/types";
 
 const TIPOS = [
   { valor: "comercial", rotulo: "Comercial" },
@@ -30,6 +33,10 @@ const VAZIO: Rascunho = {
   sindico_nome: "",
   proprietario_nome: "",
   gestor_nome: "",
+  lf_id_empreendimento: null,
+  lf_cd_condominio: "",
+  ficha: {},
+  foto_path: null,
 };
 
 const Empreendimentos = () => {
@@ -40,15 +47,35 @@ const Empreendimentos = () => {
 
   const [editando, setEditando] = useState<Rascunho | null>(null);
   const [erro, setErro] = useState<string | null>(null);
+  const [foto, setFoto] = useState<File | null>(null);
 
   const submeter = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editando) return;
     if (!editando.nome.trim()) return setErro("Informe o nome do empreendimento.");
 
+    const cd = (editando.lf_cd_condominio ?? "").trim();
+    if (cd && !/^\d{1,6}$/.test(cd)) return setErro("O código do condomínio no LiveFacilities tem só dígitos (ex.: 0231).");
+
     setErro(null);
     try {
-      await salvar.mutateAsync({ ...editando, nome: editando.nome.trim() });
+      const { id: _i, created_at: _c, updated_at: _u, ...campos } = editando as Empreendimento;
+      const salvo = await salvar.mutateAsync({
+        ...campos,
+        id: editando.id,
+        nome: editando.nome.trim(),
+        lf_cd_condominio: cd || null,
+      });
+
+      // Foto de capa: vai para o Storage depois de o ativo ter id.
+      if (foto) {
+        const extensao = foto.name.split(".").pop()?.toLowerCase() ?? "jpg";
+        const caminho = `empreendimento/${salvo.id}/capa-${novoId()}.${extensao}`;
+        const { error } = await supabase.storage.from(BUCKET_FOTOS).upload(caminho, foto, { contentType: foto.type });
+        if (error) throw new Error(`Empreendimento salvo, mas a foto falhou: ${error.message}`);
+        await salvar.mutateAsync({ id: salvo.id, nome: salvo.nome, foto_path: caminho });
+      }
+      setFoto(null);
       setEditando(null);
     } catch (err) {
       setErro(err instanceof Error ? err.message : "Não foi possível salvar.");
@@ -57,6 +84,9 @@ const Empreendimentos = () => {
 
   const campo = <K extends keyof Rascunho>(chave: K, valor: Rascunho[K]) =>
     setEditando((atual) => (atual ? { ...atual, [chave]: valor } : atual));
+
+  const campoFicha = <K extends keyof FichaEmpreendimento>(chave: K, valor: FichaEmpreendimento[K]) =>
+    setEditando((atual) => (atual ? { ...atual, ficha: { ...(atual.ficha ?? {}), [chave]: valor } } : atual));
 
   if (!interno) {
     return (
@@ -81,16 +111,20 @@ const Empreendimentos = () => {
               Os ativos sob administração. Cada um gera um relatório por competência.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              setEditando({ ...VAZIO });
-              setErro(null);
-            }}
-            className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground transition hover:bg-primary/90"
-          >
-            <Plus className="h-4 w-4" /> Novo empreendimento
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <SincronizarLF existentes={lista} />
+            <button
+              type="button"
+              onClick={() => {
+                setEditando({ ...VAZIO });
+                setFoto(null);
+                setErro(null);
+              }}
+              className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground transition hover:bg-primary/90"
+            >
+              <Plus className="h-4 w-4" /> Novo empreendimento
+            </button>
+          </div>
         </header>
 
         {isLoading ? (
@@ -125,7 +159,8 @@ const Empreendimentos = () => {
                     <button
                       type="button"
                       onClick={() => {
-                        setEditando({ ...emp });
+                        setEditando({ ...emp, ficha: emp.ficha ?? {} });
+                        setFoto(null);
                         setErro(null);
                       }}
                       aria-label={`Editar ${emp.nome}`}
@@ -148,7 +183,20 @@ const Empreendimentos = () => {
                   </div>
                 </div>
 
-                <dl className="mt-4 space-y-1.5 text-xs">
+                <p
+                  className={`mt-3 inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-bold ${
+                    emp.lf_cd_condominio
+                      ? "bg-semaforo-verde/10 text-semaforo-verde"
+                      : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  <CloudDownload className="h-3 w-3" />
+                  {emp.lf_cd_condominio
+                    ? `LiveFacilities ${emp.lf_cd_condominio}${emp.lf_id_empreendimento ? ` · id ${emp.lf_id_empreendimento}` : " · só operação"}`
+                    : "Sem integração com o LiveFacilities"}
+                </p>
+
+                <dl className="mt-3 space-y-1.5 text-xs">
                   {[
                     ["Síndico", emp.sindico_nome],
                     ["Proprietário", emp.proprietario_nome],
@@ -249,6 +297,85 @@ const Empreendimentos = () => {
                   />
                 </Campo>
               </div>
+
+              <fieldset className="rounded-lg border border-primary/30 bg-primary/5 p-4">
+                <legend className="px-1 text-sm font-bold text-primary">Integração com o LiveFacilities</legend>
+                <p className="mb-3 text-xs text-muted-foreground">
+                  Os dois códigos aparecem no sistema e <strong>nem sempre são iguais</strong> — confira um por um.
+                  Com eles preenchidos, o relatório puxa financeiro, inadimplência, OS, contratos e documentos.
+                </p>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Campo label="id_empreendimento" dica="número interno, ex.: 231">
+                    <CampoNumero
+                      valor={editando.lf_id_empreendimento ?? 0}
+                      onChange={(v) => campo("lf_id_empreendimento", v || null)}
+                    />
+                  </Campo>
+                  <Campo label="cd_condominio" dica="código do topo do sistema, ex.: 0231">
+                    <CampoTexto
+                      valor={editando.lf_cd_condominio ?? ""}
+                      onChange={(v) => campo("lf_cd_condominio", v.replace(/\D/g, ""))}
+                      placeholder="0231"
+                    />
+                  </Campo>
+                </div>
+              </fieldset>
+
+              <fieldset className="rounded-lg border border-border p-4">
+                <legend className="px-1 text-sm font-bold">Ficha técnica (slide "O empreendimento")</legend>
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <Campo label="Área construída (m²)">
+                    <CampoNumero valor={editando.ficha?.areaConstruida ?? 0} onChange={(v) => campoFicha("areaConstruida", v || null)} />
+                  </Campo>
+                  <Campo label="Área privativa (m²)">
+                    <CampoNumero valor={editando.ficha?.areaPrivativa ?? 0} onChange={(v) => campoFicha("areaPrivativa", v || null)} />
+                  </Campo>
+                  <Campo label="Torres / blocos">
+                    <CampoTexto valor={editando.ficha?.torres ?? ""} onChange={(v) => campoFicha("torres", v)} placeholder="3 (A, B e C)" />
+                  </Campo>
+                  <Campo label="Pavimentos">
+                    <CampoTexto valor={editando.ficha?.pavimentos ?? ""} onChange={(v) => campoFicha("pavimentos", v)} placeholder="7 tipo + térreo" />
+                  </Campo>
+                  <Campo label="Vagas">
+                    <CampoNumero valor={editando.ficha?.vagas ?? 0} onChange={(v) => campoFicha("vagas", v || null)} />
+                  </Campo>
+                  <Campo label="Elevadores">
+                    <CampoNumero valor={editando.ficha?.elevadores ?? 0} onChange={(v) => campoFicha("elevadores", v || null)} />
+                  </Campo>
+                  <Campo label="Início da gestão RPS">
+                    <input
+                      type="month"
+                      value={editando.ficha?.inicioGestao ?? ""}
+                      onChange={(e) => campoFicha("inicioGestao", e.target.value)}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                    />
+                  </Campo>
+                  <Campo label="CNPJ do síndico / cliente">
+                    <CampoTexto valor={editando.ficha?.sindicoDocumento ?? ""} onChange={(v) => campoFicha("sindicoDocumento", v)} />
+                  </Campo>
+                  <Campo label="Foto de capa">
+                    <label className="flex cursor-pointer items-center gap-2 rounded-md border border-dashed border-input px-3 py-2 text-sm text-muted-foreground transition hover:border-primary hover:text-primary">
+                      <ImagePlus className="h-4 w-4 shrink-0" />
+                      <span className="truncate">{foto ? foto.name : editando.foto_path ? "Trocar foto" : "Escolher foto"}</span>
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        className="hidden"
+                        onChange={(e) => setFoto(e.target.files?.[0] ?? null)}
+                      />
+                    </label>
+                  </Campo>
+                </div>
+                <div className="mt-4">
+                  <Campo label="Diferenciais do ativo" dica="aparecem como selos no slide">
+                    <CampoListaBullets
+                      itens={editando.ficha?.destaques ?? []}
+                      onChange={(v) => campoFicha("destaques", v)}
+                      placeholder="Ex.: Heliponto homologado"
+                    />
+                  </Campo>
+                </div>
+              </fieldset>
 
               {erro ? (
                 <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">

@@ -15,9 +15,12 @@ import { novoId } from "@/lib/defaults";
 import { formatarNumero, formatarVariacao } from "@/lib/format";
 import {
   consumoMedioDiario,
+  percentualOSCanceladas,
+  percentualOSNoPrazo,
   percentualPreventiva,
   percentualRealizado,
   totalAcessos,
+  totalOS,
   totalManutencoes,
   vacancia,
   variacaoConsumo,
@@ -244,6 +247,46 @@ export const SecaoOperacao = ({ dados, atualizar, somenteLeitura }: PropsSecao) 
             </div>
           ))}
         </div>
+      </div>
+
+      <div>
+        <h3 className="mb-1 text-sm font-bold">Prazo das ordens de serviço</h3>
+        <p className="mb-3 text-xs text-muted-foreground">
+          Vem do painel de OS do LiveFacilities na importação; pode ser ajustado à mão. Alimenta o
+          slide de ordens de serviço e o indicador de desempenho operacional.
+        </p>
+        <div className="grid gap-4 sm:grid-cols-3 xl:grid-cols-5">
+          {(
+            [
+              ["concluidasNoPrazo", "Concluídas no prazo"],
+              ["concluidasComAtraso", "Concluídas com atraso"],
+              ["abertasNoPrazo", "Abertas no prazo"],
+              ["abertasAtrasadas", "Abertas atrasadas"],
+              ["canceladas", "Canceladas"],
+            ] as const
+          ).map(([chave, rotulo]) => (
+            <Campo key={chave} label={rotulo}>
+              <CampoNumero
+                valor={op.situacaoOS[chave]}
+                desabilitado={somenteLeitura}
+                onChange={(v) => set({ situacaoOS: { ...op.situacaoOS, [chave]: v } })}
+              />
+            </Campo>
+          ))}
+        </div>
+        {totalOS(dados) > 0 ? (
+          <p className="mt-3 text-xs text-muted-foreground">
+            <strong className="text-foreground">{formatarNumero(totalOS(dados))} OS</strong> no período ·{" "}
+            <strong className="text-foreground">
+              {percentualOSNoPrazo(dados) === null ? "—" : `${formatarNumero(percentualOSNoPrazo(dados)!, 1)}%`}
+            </strong>{" "}
+            concluídas no prazo ·{" "}
+            <strong className="text-foreground">
+              {percentualOSCanceladas(dados) === null ? "—" : `${formatarNumero(percentualOSCanceladas(dados)!, 1)}%`}
+            </strong>{" "}
+            canceladas
+          </p>
+        ) : null}
       </div>
 
       <div>

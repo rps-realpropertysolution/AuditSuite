@@ -8,23 +8,23 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    --background: 210 28% 97%;
-    --foreground: 215 32% 15%;
+    --background: 228 33% 97%;
+    --foreground: 242 38% 17%;
 
     --card: 0 0% 100%;
-    --card-foreground: 215 32% 15%;
+    --card-foreground: 242 38% 17%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 215 32% 15%;
+    --popover-foreground: 242 38% 17%;
 
-    --primary: 203 86% 28%;
+    --primary: 201 100% 36%;
     --primary-foreground: 210 40% 98%;
 
-    --secondary: 176 55% 35%;
-    --secondary-foreground: 180 35% 96%;
+    --secondary: 191 98% 43%;
+    --secondary-foreground: 242 50% 18%;
 
-    --muted: 210 22% 92%;
-    --muted-foreground: 214 15% 43%;
+    --muted: 228 25% 93%;
+    --muted-foreground: 235 12% 42%;
 
     --accent: 41 88% 58%;
     --accent-foreground: 30 35% 14%;
@@ -32,9 +32,9 @@ All colors MUST be HSL.
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 209 21% 84%;
-    --input: 209 21% 84%;
-    --ring: 203 86% 28%;
+    --border: 230 20% 87%;
+    --input: 230 20% 84%;
+    --ring: 201 100% 36%;
 
     --radius: 0.5rem;
 
@@ -55,10 +55,10 @@ All colors MUST be HSL.
     --workorder-foreground: 180 35% 96%;
     --backlog: 269 45% 38%;
     --backlog-foreground: 270 35% 96%;
-    --executive: 218 42% 19%;
+    --executive: 242 50% 24%;
     --executive-foreground: 210 40% 98%;
     --surface-raised: 0 0% 100%;
-    --surface-soft: 204 38% 94%;
+    --surface-soft: 230 30% 96%;
     --gradient-board: linear-gradient(135deg, hsl(218 42% 19%), hsl(203 86% 28%) 52%, hsl(176 55% 35%));
     --gradient-panel: linear-gradient(180deg, hsl(0 0% 100% / 0.96), hsl(204 38% 94% / 0.88));
     --shadow-executive: 0 18px 50px -24px hsl(218 42% 19% / 0.45);
@@ -127,7 +127,7 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground;
-    font-family: Montserrat, ui-sans-serif, system-ui, sans-serif;
+    font-family: Poppins, ui-sans-serif, system-ui, sans-serif;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
 }
@@ -151,59 +151,59 @@ All colors MUST be HSL.
   }
 }
 
-/* O relatório impresso existe no DOM o tempo todo, mas só aparece na impressão.
-   Assim o Ctrl+P do navegador gera o PDF sem precisar de uma rota separada. */
-.print-report {
-  display: none;
+/* ---------------------------------------------------------------------------
+   Slides do RGM
+   O slide é um palco fixo de 1280×720 (16:9, o mesmo do PPTX corporativo).
+   Na tela ele é escalado para caber; na impressão cada slide vira uma
+   página do mesmo tamanho — o PDF sai idêntico à apresentação, vetorial,
+   com texto selecionável.
+   --------------------------------------------------------------------------- */
+.slide-rgm {
+  font-family: Poppins, ui-sans-serif, system-ui, sans-serif;
+  color: #201e5a;
+  -webkit-font-smoothing: antialiased;
+}
+
+.slide-rgm .num {
+  font-variant-numeric: tabular-nums;
 }
 
 @media print {
   @page {
-    size: A4;
+    size: 1280px 720px;
     margin: 0;
   }
 
   html,
   body {
-    background: #fff;
+    background: #fff !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
 
-  /* Some com a interface de edição e com qualquer coisa marcada como só-tela */
-  .screen-only,
-  header.sticky,
-  nav[aria-label="Seções do relatório"] {
+  .screen-only {
     display: none !important;
   }
 
-  .print-report {
+  .slides-impressao {
     display: block !important;
+    padding: 0 !important;
+    gap: 0 !important;
+    background: #fff !important;
   }
 
-  .print-page {
-    width: 210mm;
-    min-height: 297mm;
-    page-break-after: always;
-    break-after: page;
-    position: relative;
+  .slides-impressao .slide-pagina {
+    width: 1280px;
+    height: 720px;
     overflow: hidden;
+    box-shadow: none !important;
+    margin: 0 !important;
+    break-after: page;
+    page-break-after: always;
   }
 
-  .print-page:last-child {
-    page-break-after: auto;
+  .slides-impressao .slide-pagina:last-child {
     break-after: auto;
-  }
-
-  /* Não parte tabela, figura nem bloco de análise no meio da página */
-  table,
-  figure,
-  .break-inside-avoid {
-    break-inside: avoid;
-    page-break-inside: avoid;
-  }
-
-  thead {
-    display: table-header-group;
+    page-break-after: auto;
   }
 }

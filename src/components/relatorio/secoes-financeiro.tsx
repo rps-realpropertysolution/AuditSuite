@@ -1,4 +1,4 @@
-import { Banknote, ClipboardCheck, HardHat, Sparkles } from "lucide-react";
+import { Banknote, ClipboardCheck, Gem, HardHat, Sparkles } from "lucide-react";
 import {
   BadgeSemaforo,
   Campo,
@@ -10,7 +10,7 @@ import {
 } from "@/components/campos";
 import { ComentarioGestor, Secao, TabelaEditavel, type Coluna } from "./blocos";
 import { novoId } from "@/lib/defaults";
-import { formatarMoeda, formatarVariacao } from "@/lib/format";
+import { competenciaAnterior, formatarCompetencia, formatarMoeda, formatarVariacao } from "@/lib/format";
 import {
   desvioCapex,
   despesaSobreReceita,
@@ -21,6 +21,7 @@ import {
   saldoAnteriorTotal,
   saldoFundo,
   saldoTotal,
+  taxaInadimplenciaMes,
   variacao,
 } from "@/lib/metrics";
 import type {
@@ -28,6 +29,7 @@ import type {
   LinhaCapex,
   LinhaFundo,
   LinhaGrupoContabil,
+  LinhaValorGerado,
   Semaforo,
 } from "@/lib/types";
 
@@ -133,8 +135,11 @@ export const SecaoSumario = ({ dados, atualizar, somenteLeitura }: PropsSecao) =
 const semaforoDesvio = (desvio: number | null): Semaforo =>
   desvio === null ? "amarelo" : Math.abs(desvio) <= 5 ? "verde" : Math.abs(desvio) <= 20 ? "amarelo" : "vermelho";
 
-export const SecaoFinanceiro = ({ dados, atualizar, somenteLeitura }: PropsSecao) => {
+export const SecaoFinanceiro = ({ dados, atualizar, somenteLeitura, competencia }: PropsSecao & { competencia: string }) => {
   const fin = dados.financeiro;
+  // Financeiro = última prestação de contas fechada; padrão: mês anterior à competência.
+  const padraoFin = competenciaAnterior(competencia);
+  const mesesFin = [competencia, padraoFin, competenciaAnterior(padraoFin), competenciaAnterior(competenciaAnterior(padraoFin))];
   const set = (patch: Partial<DadosRelatorio["financeiro"]>) =>
     atualizar("financeiro", { ...fin, ...patch });
 
@@ -285,8 +290,30 @@ export const SecaoFinanceiro = ({ dados, atualizar, somenteLeitura }: PropsSecao
       id="financeiro"
       titulo="Financeiro"
       icone={<Banknote className="h-5 w-5" />}
-      descricao="Resultado do mês e comparativo entre orçado e realizado por grupo contábil."
+      descricao="Resultado, fundos e orçado x realizado da última prestação de contas fechada."
     >
+      <div className="flex flex-wrap items-end gap-4 rounded-lg border border-primary/30 bg-primary/5 p-4">
+        <Campo label="Prestação de contas usada no financeiro" dica="a última fechada">
+          <select
+            value={dados.competenciaFinanceira || padraoFin}
+            disabled={somenteLeitura}
+            onChange={(e) => atualizar("competenciaFinanceira", e.target.value === padraoFin ? "" : e.target.value)}
+            className="rounded-md border border-input bg-background px-3 py-2 text-sm capitalize"
+          >
+            {mesesFin.map((m) => (
+              <option key={m} value={m}>
+                {formatarCompetencia(m)}
+                {m === padraoFin ? " (padrão)" : ""}
+              </option>
+            ))}
+          </select>
+        </Campo>
+        <p className="max-w-md pb-2 text-xs text-muted-foreground">
+          O RGM de {formatarCompetencia(competencia)} apresenta o financeiro da prestação já fechada. Os slides
+          financeiros e a importação usam este mês.
+        </p>
+      </div>
+
       <div>
         <h3 className="mb-1 text-sm font-bold">Resumo financeiro contábil</h3>
         <p className="mb-3 text-xs text-muted-foreground">
@@ -373,6 +400,48 @@ export const SecaoFinanceiro = ({ dados, atualizar, somenteLeitura }: PropsSecao
           </tr>
         }
       />
+
+      <div>
+        <h3 className="mb-1 text-sm font-bold">Arrecadação da conta ordinária</h3>
+        <p className="mb-3 text-xs text-muted-foreground">
+          Emitido x recebido no mês (resumo de emissões). A taxa de inadimplência do mês é calculada.
+        </p>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <Campo label="Emitido no mês">
+            <CampoMoeda
+              valor={fin.arrecadacao.emitido}
+              desabilitado={somenteLeitura}
+              onChange={(v) => set({ arrecadacao: { ...fin.arrecadacao, emitido: v } })}
+            />
+          </Campo>
+          <Campo label="Recebido no mês">
+            <CampoMoeda
+              valor={fin.arrecadacao.recebido}
+              desabilitado={somenteLeitura}
+              onChange={(v) => set({ arrecadacao: { ...fin.arrecadacao, recebido: v } })}
+            />
+          </Campo>
+          <div className="rounded-lg border border-border bg-surface-soft p-3">
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Inadimplência do mês
+            </span>
+            <strong className="mt-1 block text-xl tabular-nums text-foreground">
+              {taxaInadimplenciaMes(dados) === null ? "—" : formatarVariacao(taxaInadimplenciaMes(dados)!, 1).replace("+", "")}
+            </strong>
+            <span className="text-xs text-muted-foreground">em aberto / emitido</span>
+          </div>
+        </div>
+      </div>
+
+      <Campo label="Saldo contábil x saldo bancário" dica="conciliação dos fundos — aparece no slide de fundos">
+        <CampoTextoLongo
+          valor={fin.conciliacao}
+          desabilitado={somenteLeitura}
+          onChange={(v) => set({ conciliacao: v })}
+          linhas={3}
+          placeholder={"Saldo contábil (30/09): ...\nSaldo bancário (banco/conta): ...\nConciliação pendente: ..."}
+        />
+      </Campo>
 
       <ComentarioGestor
         valor={fin.comentario}
@@ -533,3 +602,101 @@ export const SecaoConclusao = ({ dados, atualizar, somenteLeitura }: PropsSecao)
     />
   </Secao>
 );
+
+/* ========================================================================== */
+/* Valor gerado no período                                                    */
+/* ========================================================================== */
+
+const TIPOS_VALOR = [
+  { valor: "realizado" as const, rotulo: "Realizado (comprovado)" },
+  { valor: "estimado" as const, rotulo: "Estimado (terceiro)" },
+  { valor: "projetado" as const, rotulo: "Projetado (depende de aprovação)" },
+  { valor: "investido" as const, rotulo: "Investido no ativo" },
+];
+
+export const SecaoValorGerado = ({ dados, atualizar, somenteLeitura }: PropsSecao) => {
+  const set = (linhas: LinhaValorGerado[]) => atualizar("valorGerado", { linhas });
+
+  const colunas: Coluna<LinhaValorGerado>[] = [
+    {
+      chave: "tipo",
+      titulo: "Tipo",
+      largura: "w-56",
+      render: (l, up) => (
+        <CampoSelecao valor={l.tipo} desabilitado={somenteLeitura} opcoes={TIPOS_VALOR} onChange={(v) => up({ tipo: v })} />
+      ),
+    },
+    {
+      chave: "valor",
+      titulo: "Valor",
+      largura: "w-40",
+      alinhar: "direita",
+      render: (l, up) => <CampoMoeda valor={l.valor} desabilitado={somenteLeitura} onChange={(v) => up({ valor: v })} />,
+    },
+    {
+      chave: "periodicidade",
+      titulo: "Período",
+      largura: "w-32",
+      render: (l, up) => (
+        <CampoSelecao
+          valor={l.periodicidade ?? ""}
+          desabilitado={somenteLeitura}
+          opcoes={[
+            { valor: "", rotulo: "único" },
+            { valor: "/mês", rotulo: "por mês" },
+            { valor: "/ano", rotulo: "por ano" },
+          ]}
+          onChange={(v) => up({ periodicidade: v })}
+        />
+      ),
+    },
+    {
+      chave: "descricao",
+      titulo: "Descrição",
+      largura: "min-w-[220px]",
+      render: (l, up) => (
+        <CampoTexto
+          valor={l.descricao}
+          desabilitado={somenteLeitura}
+          onChange={(v) => up({ descricao: v })}
+          placeholder="Ex.: economia no Mercado Livre de energia"
+        />
+      ),
+    },
+    {
+      chave: "observacao",
+      titulo: "Observação",
+      largura: "min-w-[200px]",
+      render: (l, up) => (
+        <CampoTexto
+          valor={l.observacao}
+          desabilitado={somenteLeitura}
+          onChange={(v) => up({ observacao: v })}
+          placeholder="Como foi apurado / quando vira realizado"
+        />
+      ),
+    },
+  ];
+
+  return (
+    <Secao
+      id="valorGerado"
+      titulo="Valor gerado no período"
+      icone={<Gem className="h-5 w-5" />}
+      descricao="O que a gestão entregou em dinheiro. Critério RPS: só é realizado o que está comprovado em caixa ou em campo; estimativa de terceiro e projeção que depende de aprovação ficam separadas. Sem lançamento, a inadimplência recuperada entra como realizado."
+    >
+      <TabelaEditavel
+        linhas={dados.valorGerado.linhas}
+        colunas={colunas}
+        somenteLeitura={somenteLeitura}
+        onChange={set}
+        novaLinha={() => ({ id: novoId(), tipo: "realizado" as const, valor: 0, descricao: "", periodicidade: "", observacao: "" })}
+        rotuloAdicionar="Adicionar valor"
+        vazio={{
+          titulo: "Nenhum valor lançado",
+          descricao: "Economias, recuperações, otimizações contratuais e investimentos do período — vira o slide \"Valor gerado\" e os \"Ganhos do período\" do painel.",
+        }}
+      />
+    </Secao>
+  );
+};
