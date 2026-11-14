@@ -38,3 +38,6 @@ export const linhasDeHtml = (html: string): string[][] => {
   }
   return linhas;
 };
+
+/** .xlsx de verdade é um ZIP ("PK\x03\x04"). */
+export const ehZip = (bytes: Uint8Array) => bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04;

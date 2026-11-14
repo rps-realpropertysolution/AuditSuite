@@ -57,6 +57,8 @@ export const ImportarArquivos = ({ dados, contexto, nomeEmpreendimento, onAplica
   const [lendo, setLendo] = useState(false);
   const [leituras, setLeituras] = useState<ResultadoLeitura[]>([]);
   const [previa, setPrevia] = useState<ResultadoArquivos | null>(null);
+  // PDF da Prestação de Contas Operacional: as fotos vão para o seletor da seção Evidências
+  const [prestacoes, setPrestacoes] = useState<Record<string, File>>({});
 
   const ler = async (lista: FileList | null) => {
     if (!lista?.length) return;
@@ -65,7 +67,11 @@ export const ImportarArquivos = ({ dados, contexto, nomeEmpreendimento, onAplica
     const novas: ResultadoLeitura[] = [];
     for (const arquivo of Array.from(lista)) {
       try {
-        novas.push(interpretarArquivo(await lerArquivo(arquivo)));
+        const lido = interpretarArquivo(await lerArquivo(arquivo));
+        if ("relatorio" in lido && lido.relatorio.tipo === "informativo" && /presta/i.test(lido.relatorio.titulo)) {
+          setPrestacoes((atual) => ({ ...atual, [arquivo.name]: arquivo }));
+        }
+        novas.push(lido);
       } catch (e) {
         novas.push({ ok: false, nome: arquivo.name, erro: e instanceof Error ? e.message : "não foi possível ler o arquivo" });
       }
@@ -83,7 +89,8 @@ export const ImportarArquivos = ({ dados, contexto, nomeEmpreendimento, onAplica
   const remover = (nome: string) => atualizarLista(leituras.filter((l) => l.nome !== nome));
 
   const erros = leituras.filter((l): l is Extract<ResultadoLeitura, { ok: false }> => "erro" in l);
-  const recusados = previa?.recusados ?? [];
+  // o PDF da prestação operacional não é recusa: ele vai para o seletor de fotos
+  const recusados = (previa?.recusados ?? []).filter((r) => !prestacoes[r.nome]);
   const aplicaveis = previa?.preenchido.length ?? 0;
 
   return (
@@ -170,10 +177,22 @@ export const ImportarArquivos = ({ dados, contexto, nomeEmpreendimento, onAplica
                       <div className="min-w-0 flex-1">
                         <p className="truncate font-semibold">{l.nome}</p>
                         <p className="text-xs text-muted-foreground">
-                          {"erro" in l ? l.erro : recusa ? `${titulo}: ${recusa.motivo}` : `${titulo} — reconhecido`}
+                          {prestacoes[l.nome] ? "Prestação de contas operacional: daqui saem as fotos do mês." : "erro" in l ? l.erro : recusa ? `${titulo}: ${recusa.motivo}` : `${titulo} — reconhecido`}
                         </p>
+                        {prestacoes[l.nome] ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              window.dispatchEvent(new CustomEvent("rgm:fotos-prestacao", { detail: prestacoes[l.nome] }));
+                              onFechar();
+                            }}
+                            className="mt-1 text-sm font-bold text-primary hover:underline"
+                          >
+                            Escolher as fotos deste PDF →
+                          </button>
+                        ) : null}
                       </div>
-                      {"erro" in l || recusa ? (
+                      {("erro" in l || recusa) && !prestacoes[l.nome] ? (
                         <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-semaforo-amarelo" />
                       ) : (
                         <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-semaforo-verde" />

@@ -38,6 +38,17 @@ export const FotosDoSistema = ({ jaTem, onEscolher }: Props) => {
   };
   useEffect(() => () => fotos.forEach((f) => URL.revokeObjectURL(f.url)), [fotos]);
 
+  // o "Importar arquivos" manda para cá o PDF da Prestação de Contas Operacional
+  useEffect(() => {
+    const receber = (e: Event) => {
+      const arquivo = (e as CustomEvent<File>).detail;
+      document.getElementById("fotos")?.scrollIntoView({ behavior: "smooth" });
+      void lerRef.current(arquivo);
+    };
+    window.addEventListener("rgm:fotos-prestacao", receber);
+    return () => window.removeEventListener("rgm:fotos-prestacao", receber);
+  }, []);
+
   const ler = async (arquivo: File | undefined) => {
     if (!arquivo) return;
     limpar();
@@ -56,6 +67,9 @@ export const FotosDoSistema = ({ jaTem, onEscolher }: Props) => {
       setProgresso(null);
     }
   };
+
+  const lerRef = useRef(ler);
+  lerRef.current = ler;
 
   const alternar = (id: string) =>
     setEscolhidas((atual) => (atual.includes(id) ? atual.filter((x) => x !== id) : atual.length >= MAX_ESCOLHA ? atual : [...atual, id]));
