@@ -11,6 +11,7 @@
 import { useMemo, useState } from "react";
 import { Loader2, Search, ShieldCheck, UserCheck, X } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
+import { CriarAcesso } from "@/components/acessos/CriarAcesso";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEmpreendimentos } from "@/hooks/useEmpreendimentos";
 import {
@@ -210,6 +211,8 @@ const Acessos = () => {
               ) : null}
             </p>
           </div>
+          <div className="flex flex-wrap items-center gap-3">
+          {ehDiretoria ? <CriarAcesso empreendimentos={empreendimentos} ehAdministrador={ehAdministrador} /> : null}
           <label className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <input
@@ -219,6 +222,7 @@ const Acessos = () => {
               className="w-72 rounded-md border border-input bg-card py-2 pl-9 pr-3 text-sm outline-none focus:border-primary"
             />
           </label>
+          </div>
         </header>
 
         {erro ? (
