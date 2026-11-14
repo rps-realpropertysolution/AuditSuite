@@ -110,6 +110,7 @@ import {
   leituraOuAutomatica,
   resumoDoMes,
   comentarioParaTopicos,
+  type Topico,
 } from "@/lib/leitura";
 import {
   competenciaAnterior,
@@ -122,6 +123,7 @@ import {
   formatarVariacao,
 } from "@/lib/format";
 import type { DadosRelatorio, Relatorio, Semaforo } from "@/lib/types";
+import { prazoEntrega } from "@/lib/entregas";
 import {
   CaixaLeitura,
   CartaoKpi,
@@ -131,6 +133,7 @@ import {
   LegendaSemaforo,
   Ponto,
   RotuloBloco,
+  SlideAbertura,
   SlideCapa,
   SlideEncerramento,
   SlidePadrao,
@@ -153,6 +156,7 @@ export interface SlideMontado {
 /** Ordem do template corporativo RPS 360° e capítulo de cada slide. */
 const ORDEM: { id: string; capitulo: CapituloId | null }[] = [
   { id: "capa", capitulo: null },
+  { id: "panorama", capitulo: null },
   { id: "sumario", capitulo: null },
   { id: "painel", capitulo: null },
   { id: "empreendimento", capitulo: "01" },
@@ -221,6 +225,28 @@ const vsAnterior = (atual: number, anterior: number | undefined, compAnt: string
 /* Montagem                                                                    */
 /* -------------------------------------------------------------------------- */
 
+/** Primeiro tópico da leitura vira a manchete do slide: "Destaque — texto". */
+const manchete = (topicos: Topico[]) => {
+  const t = topicos[0];
+  if (!t) return undefined;
+  const destaque = t.destaque.trim();
+  if (!destaque) return t.texto;
+  return destaque.endsWith(":") ? `${destaque.slice(0, -1)} — ${t.texto}` : `${destaque} ${t.texto}`;
+};
+
+const mancheteOrcamento = (dv: number | null, orc: number, real: number) =>
+  dv === null
+    ? undefined
+    : Math.abs(dv) < 1
+      ? `Despesa ordinária em linha com o orçamento: ${formatarMoedaMil(real)} realizados para ${formatarMoedaMil(orc)} previstos.`
+      : `Despesa ordinária ${formatarNumero(Math.abs(dv), 1)}% ${dv > 0 ? "acima" : "abaixo"} do orçamento: ${formatarMoedaMil(real)} realizados para ${formatarMoedaMil(orc)} previstos.`;
+
+/** Prazo do RGM seguinte (para o encerramento). */
+const prazoProximo = (competencia: string) => {
+  const [a, m] = competencia.split("-").map(Number);
+  return prazoEntrega(`${m === 12 ? a + 1 : a}-${String(m === 12 ? 1 : m + 1).padStart(2, "0")}-01`);
+};
+
 export const montarSlides = (ctx: ContextoSlides): SlideMontado[] => {
   const { relatorio } = ctx;
   const hoje = ctx.hoje ?? new Date();
@@ -258,11 +284,114 @@ export const montarSlides = (ctx: ContextoSlides): SlideMontado[] => {
   };
 
   const ind = Object.fromEntries(indicadores360(d, hoje).map((i) => [i.id, i]));
+
+  const reserva = fundoDeReserva(d);
+  const mancheteFundos = saldoTotal(d)
+    ? `Saldo consolidado de ${formatarMoedaMil(saldoTotal(d))}${reserva ? `; fundo de reserva com ${formatarMoedaMil(saldoFundo(reserva))}` : ""}.`
+    : undefined;
+
+  /** Os números que abrem cada capítulo (tela escura). Só o que existe entra. */
+  const destaquesDoCapitulo = (id: CapituloId): { rotulo: string; valor: string; apoio?: string; semaforo?: Semaforo }[] => {
+    type D = { rotulo: string; valor: string; apoio?: string; semaforo?: Semaforo } | null;
+    const lista: D[] = (() => {
+      switch (id) {
+        case "01":
+          return [
+            d.operacao.ocupacao > 0 ? { rotulo: "Ocupação", valor: `${formatarNumero(d.operacao.ocupacao, 0)}%` } : null,
+            emp?.ficha?.areaConstruida ? { rotulo: "Área construída", valor: `${formatarNumero(emp.ficha.areaConstruida, 0)} m²` } : null,
+            totalAcessos(d) > 0 ? { rotulo: "Acessos no mês", valor: formatarNumero(totalAcessos(d)) } : null,
+          ];
+        case "02":
+          return [
+            receitaTotal(d) || despesaTotal(d) ? { rotulo: `Resultado · ${mesFinCurto}`, valor: formatarMoedaMil(resultadoFinanceiro(d)), semaforo: ind.resultado?.semaforo } : null,
+            saldoTotal(d) ? { rotulo: "Saldo consolidado", valor: formatarMoedaMil(saldoTotal(d)), semaforo: ind.saldo?.semaforo } : null,
+            inadimplenciaTotal(d) ? { rotulo: "Inadimplência total", valor: formatarMoedaMil(inadimplenciaTotal(d)), semaforo: ind.inadimplencia?.semaforo } : null,
+          ];
+        case "03": {
+          const c = contarContratos(d, hoje);
+          const doc = contarDocumentos(d, hoje);
+          const cert = contarCertidoes(d, hoje);
+          return [
+            d.contratos.linhas.length ? { rotulo: "Contratos vigentes", valor: `${c.vigentes + c.emRenovacao} de ${d.contratos.linhas.length}`, semaforo: ind.contratos?.semaforo } : null,
+            doc.percentualEmDia !== null ? { rotulo: "Documentos em dia", valor: `${formatarNumero(doc.percentualEmDia, 0)}%`, semaforo: ind.documentos?.semaforo } : null,
+            cert.total ? { rotulo: "Certidões regulares", valor: `${cert.regulares} de ${cert.total}`, semaforo: ind.juridico?.semaforo } : null,
+          ];
+        }
+        case "04":
+          return [
+            totalOS(d) ? { rotulo: "Ordens de serviço", valor: formatarNumero(totalOS(d)) } : null,
+            percentualOSNoPrazo(d) !== null ? { rotulo: "Concluídas no prazo", valor: `${formatarNumero(percentualOSNoPrazo(d)!, 0)}%`, semaforo: ind.operacao?.semaforo } : null,
+            d.suprimentos.pedidos.length ? { rotulo: "Pedidos de compra", valor: formatarNumero(d.suprimentos.pedidos.length) } : null,
+          ];
+        case "05": {
+          const energia = d.utilidades.linhas.find((u) => /energ/i.test(u.utilidade) && u.consumo > 0);
+          const agua = d.utilidades.linhas.find((u) => /agua|água/i.test(u.utilidade) && u.consumo > 0);
+          const custo = d.utilidades.linhas.reduce((s, u) => s + u.fatura, 0);
+          return [
+            energia ? { rotulo: "Energia", valor: `${formatarNumero(energia.consumo)} kWh` } : null,
+            agua ? { rotulo: "Água", valor: `${formatarNumero(agua.consumo)} m³` } : null,
+            custo ? { rotulo: "Custo das faturas", valor: formatarMoedaMil(custo) } : null,
+          ];
+        }
+        case "06": {
+          const realizado = d.valorGerado.linhas.filter((v) => v.tipo === "realizado").reduce((s, v) => s + v.valor, 0) || inadimplenciaRecebida(d);
+          const capex = d.capex.linhas.reduce((s, c) => s + c.orcado, 0);
+          return [
+            realizado ? { rotulo: "Valor gerado (realizado)", valor: formatarMoedaMil(realizado) } : null,
+            capex ? { rotulo: "CAPEX em carteira", valor: formatarMoedaMil(capex) } : null,
+          ];
+        }
+        case "07": {
+          const plano = resumoPlanoAcao(d);
+          const decisoes = d.proximosPassos.linhas.filter((p) => p.dependeDoCliente).length;
+          return [
+            plano.total ? { rotulo: "Ações no plano", valor: formatarNumero(plano.total) } : null,
+            plano.percentual !== null ? { rotulo: "Concluídas", valor: `${formatarNumero(plano.percentual, 0)}%` } : null,
+            decisoes ? { rotulo: "Decisões do proprietário", valor: formatarNumero(decisoes) } : null,
+          ];
+        }
+      }
+    })();
+    return lista.filter((x): x is NonNullable<D> => Boolean(x));
+  };
   const slides: SlideMontado[] = [];
   const add = (id: string, titulo: string, node: ReactNode) => slides.push({ id, titulo, node, capitulo: null, pagina: 0 });
 
   /* ----------------------------------------------------------- 1. capa */
-  add("capa", "Capa", <SlideCapa empreendimento={emp?.nome ?? "Empreendimento"} competencia={mes} financeiro={mesFin} cidade={emp?.cidade} />);
+  add(
+    "capa",
+    "Capa",
+    <SlideCapa
+      empreendimento={emp?.nome ?? "Empreendimento"}
+      competencia={mes}
+      financeiro={mesFin}
+      cidade={emp?.cidade}
+      foto={ctx.urlFotoEmpreendimento}
+      gestor={emp?.gestor_nome}
+    />,
+  );
+
+  /* ------------------------------------------- o mês em uma leitura (tela cheia) */
+  {
+    const destaques = [
+      receitaTotal(d) || despesaTotal(d)
+        ? { rotulo: `Resultado · ${mesFinCurto}`, valor: formatarMoedaMil(resultadoFinanceiro(d)), semaforo: (resultadoFinanceiro(d) >= 0 ? "verde" : "amarelo") as Semaforo }
+        : null,
+      saldoTotal(d) ? { rotulo: "Saldo consolidado", valor: formatarMoedaMil(saldoTotal(d)) } : null,
+      inadimplenciaTotal(d) ? { rotulo: "Inadimplência em aberto", valor: formatarMoedaMil(inadimplenciaTotal(d)), semaforo: ind.inadimplencia?.semaforo } : null,
+      percentualOSNoPrazo(d) !== null
+        ? { rotulo: "OS no prazo", valor: `${formatarNumero(percentualOSNoPrazo(d)!, 0)}%`, semaforo: ind.operacao?.semaforo }
+        : null,
+    ].filter(Boolean) as { rotulo: string; valor: string; semaforo?: Semaforo }[];
+    const frase = resumoDoMes(d, anterior, hoje);
+    if (frase || destaques.length) {
+      add(
+        "panorama",
+        `${mes} em uma leitura`,
+        <SlideAbertura sobretitulo={`${mes} em uma leitura`} titulo={emp?.nome ?? "O mês"} texto={frase || undefined} destaques={destaques} foto={ctx.urlFotoEmpreendimento} />,
+      );
+    }
+  }
 
   /* ---------------------------------------------- 2. o empreendimento */
   const ficha = emp?.ficha ?? {};
@@ -528,7 +657,7 @@ export const montarSlides = (ctx: ContextoSlides): SlideMontado[] => {
     add(
       "financeiro",
       "Financeiro · resultado",
-      <SlidePadrao secao={`Financeiro · resultado e tendência · ${mesFin}`} icone={TrendingUp} fontes={fontes(["financeiro"], `prestação de contas de ${mesFinExtenso} (última competência fechada)`)}>
+      <SlidePadrao secao={`Resultado e tendência · ${mesFin}`} manchete={manchete(leitura.topicos)} icone={TrendingUp} fontes={fontes(["financeiro"], `prestação de contas de ${mesFinExtenso} (última competência fechada)`)}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 18 }}>
           <CartaoKpi rotulo={`Créditos do mês · ${mesFinCurto}`} valor={formatarMoedaMil(receitaTotal(d))} apoio={vsAnterior(receitaTotal(d), ant && receitaTotal(ant), anterior?.competencia)} altura={100} corValor={COR.azul} />
           <CartaoKpi rotulo={`Débitos do mês · ${mesFinCurto}`} valor={formatarMoedaMil(despesaTotal(d))} apoio={vsAnterior(despesaTotal(d), ant && despesaTotal(ant), anterior?.competencia)} altura={100} corValor={COR.navy} />
@@ -598,7 +727,7 @@ export const montarSlides = (ctx: ContextoSlides): SlideMontado[] => {
     add(
       "fundos",
       "Financeiro · fundos",
-      <SlidePadrao secao={`Financeiro · fundos e reserva · ${mesFin}`} icone={PiggyBank} fontes={fontes(["financeiro"], `posição financeira por fundo · prestação de contas de ${mesFinExtenso}`)}>
+      <SlidePadrao secao={`Fundos e reserva · ${mesFin}`} manchete={mancheteFundos} icone={PiggyBank} fontes={fontes(["financeiro"], `posição financeira por fundo · prestação de contas de ${mesFinExtenso}`)}>
         <div style={{ display: "flex", gap: 28 }}>
           <div style={{ width: 520 }}>
             <RotuloBloco>Composição do saldo na competência (R$ mil)</RotuloBloco>
@@ -716,7 +845,7 @@ export const montarSlides = (ctx: ContextoSlides): SlideMontado[] => {
     add(
       "orcamento",
       "Previsto x realizado",
-      <SlidePadrao secao={`Financeiro · previsto x realizado · ${mesFin}`} icone={Calculator} fontes={fontes(["financeiro"], "desvio = (realizado − previsto) / previsto")}>
+      <SlidePadrao secao={`Previsto x realizado · ${mesFin}`} manchete={mancheteOrcamento(dv, orc, real)} icone={Calculator} fontes={fontes(["financeiro"], "desvio = (realizado − previsto) / previsto")}>
         <div style={{ display: "flex", gap: 26 }}>
           <div style={{ width: 230, display: "flex", flexDirection: "column", gap: 18 }}>
             {dvAnt !== null && anterior ? (
@@ -804,7 +933,7 @@ export const montarSlides = (ctx: ContextoSlides): SlideMontado[] => {
     add(
       "custos",
       "Estrutura de custos",
-      <SlidePadrao secao={`Financeiro · estrutura de custos · ${mesFin}`} icone={IconePizza} fontes={fontes(["financeiro"], "despesas pagas no mês por grupo contábil")}>
+      <SlidePadrao secao={`Estrutura de custos · ${mesFin}`} manchete={`${linhas[0].grupo} responde por ${formatarNumero(linhas[0].pct, 0)}% da despesa; os três maiores grupos somam ${formatarNumero(top3, 0)}%.`} icone={IconePizza} fontes={fontes(["financeiro"], "despesas pagas no mês por grupo contábil")}>
         <div style={{ display: "flex", gap: 30 }}>
           <div style={{ width: 760 }}>
             <RotuloBloco>Composição das despesas — {mesFin} (R$ mil · % do total)</RotuloBloco>
@@ -870,6 +999,7 @@ export const montarSlides = (ctx: ContextoSlides): SlideMontado[] => {
       "inadimplencia",
       "Arrecadação e inadimplência",
       <SlidePadrao
+        manchete={manchete(leitura.topicos)}
         secao={`Arrecadação e inadimplência · ${mesFin}`}
         icone={Receipt}
         fontes={fontes(["juridico", "arrecadacao"], `taxa = em aberto do mês / emitido no mês; posição de inadimplência de ${mesFinExtenso}`)}
@@ -1058,7 +1188,7 @@ export const montarSlides = (ctx: ContextoSlides): SlideMontado[] => {
     add(
       "contratos",
       "Contratos",
-      <SlidePadrao secao="Contratos" icone={Handshake} fontes={fontes(["contratos"], "vigência mais recente por fornecedor")}>
+      <SlidePadrao secao="Contratos" manchete={manchete(leitura.topicos)} icone={Handshake} fontes={fontes(["contratos"], "vigência mais recente por fornecedor")}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 18 }}>
           <CartaoKpi rotulo="Contratos analisados" valor={String(d.contratos.linhas.length)} apoio="cadastro do empreendimento" corValor={COR.navy} altura={96} />
           <CartaoKpi rotulo="Vencidos no cadastro" valor={String(ctr.vencidos)} apoio="data de término no sistema · situação a validar" semaforo={ctr.vencidos ? "vermelho" : "verde"} altura={96} />
@@ -1110,7 +1240,7 @@ export const montarSlides = (ctx: ContextoSlides): SlideMontado[] => {
     add(
       "documentos",
       "Documentos legais",
-      <SlidePadrao secao="Documentos legais e compliance" icone={FileText} fontes={fontes(["documentos"], `prazo contado a partir de ${formatarData(hoje.toISOString())}; "em dia" = vigentes + permanentes`)}>
+      <SlidePadrao secao="Documentos legais e compliance" manchete={manchete(leituraDocumentos(d, hoje))} icone={FileText} fontes={fontes(["documentos"], `prazo contado a partir de ${formatarData(hoje.toISOString())}; "em dia" = vigentes + permanentes`)}>
         <div style={{ display: "flex", gap: 30 }}>
           <div style={{ width: 300 }}>
             <RotuloBloco>Situação dos {c.total} documentos cadastrados</RotuloBloco>
@@ -1226,7 +1356,7 @@ export const montarSlides = (ctx: ContextoSlides): SlideMontado[] => {
     add(
       "os",
       "Ordens de serviço",
-      <SlidePadrao secao="Manutenção · ordens de serviço" icone={ClipboardList} fontes={fontes(["os", "operacao"], "painel de OS do sistema")}>
+      <SlidePadrao secao="Ordens de serviço" manchete={manchete(leitura)} icone={ClipboardList} fontes={fontes(["os", "operacao"], "painel de OS do sistema")}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 18 }}>
           {total > 0 ? (
             <>
@@ -1363,7 +1493,7 @@ export const montarSlides = (ctx: ContextoSlides): SlideMontado[] => {
     add(
       "fotos",
       "Registro fotográfico",
-      <SlidePadrao secao="Operação · registro fotográfico" icone={Camera} fontes={fontes([], "relatórios fotográficos dos fornecedores e vistorias da gestão")}>
+      <SlidePadrao secao="Registro fotográfico" icone={Camera} fontes={fontes([], "relatórios fotográficos dos fornecedores e vistorias da gestão")}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gridTemplateRows: "repeat(2, 1fr)", gap: 16, height: "100%" }}>
           {fotos.map((f, i) => (
             <figure key={f.id} style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
@@ -1615,7 +1745,7 @@ export const montarSlides = (ctx: ContextoSlides): SlideMontado[] => {
     add(
       "riscos",
       "Plano de ação e riscos",
-      <SlidePadrao secao="Plano de ação e matriz de riscos" icone={ShieldAlert} fontes={fontes([], "action log do empreendimento; análise RPS sobre os dados deste relatório")}>
+      <SlidePadrao secao="Plano de ação e matriz de riscos" manchete={`${plano.total} ações no plano: ${plano.concluidas} concluídas, ${plano.emAndamento} em andamento${altasEmCurso.length ? ` — ${altasEmCurso.length} de prioridade alta em curso` : ""}.`} icone={ShieldAlert} fontes={fontes([], "action log do empreendimento; análise RPS sobre os dados deste relatório")}>
         <div style={{ display: "flex", gap: 30 }}>
           <div style={{ width: 250 }}>
             <RotuloBloco>Action log — {plano.total} ações</RotuloBloco>
@@ -1690,7 +1820,7 @@ export const montarSlides = (ctx: ContextoSlides): SlideMontado[] => {
     add(
       "proximos",
       "Decisões e próximos passos",
-      <SlidePadrao secao="Decisões e próximos passos" icone={CheckCircle2} fontes={fontes([], "decisões apresentadas como proposta da RPS para deliberação do cliente")}>
+      <SlidePadrao secao="Decisões e próximos passos" manchete={decisoes.length ? `${decisoes.length} ${decisoes.length === 1 ? "decisão depende" : "decisões dependem"} do proprietário neste mês.` : undefined} icone={CheckCircle2} fontes={fontes([], "decisões apresentadas como proposta da RPS para deliberação do cliente")}>
         <div style={{ display: "flex", gap: 28, height: "100%" }}>
           <div style={{ width: 596, background: COR.navy, color: "#fff", padding: "18px 22px" }}>
             <RotuloBloco cor={COR.ciano} style={{ marginBottom: 14 }}>
@@ -1744,38 +1874,65 @@ export const montarSlides = (ctx: ContextoSlides): SlideMontado[] => {
     add(
       "conclusao",
       "Conclusão",
-      <SlidePadrao secao="Conclusão" icone={MessageSquareText}>
-        <div style={{ display: "flex", gap: 28, height: "100%" }}>
-          <div style={{ width: 8, background: COR.ciano }} />
-          <p style={{ fontSize: 19, lineHeight: 1.6, color: COR.navy, whiteSpace: "pre-wrap", flex: 1 }}>{d.conclusao}</p>
-        </div>
-      </SlidePadrao>,
+      // fecha o relatório em tela cheia: a mensagem do gestor ao proprietário
+      <SlideAbertura sobretitulo={`Conclusão · ${mes}`} titulo="Em síntese" texto={d.conclusao.trim()} foto={ctx.urlFotoEmpreendimento} />,
     );
   }
 
-  add("fim", "Encerramento", <SlideEncerramento />);
+  {
+    const decisoesCliente = d.proximosPassos.linhas.filter((p) => p.dependeDoCliente && !/conclu|resolvid|encerrad/i.test(p.status)).length;
+    const linhasFim = [
+      decisoesCliente ? `${decisoesCliente} ${decisoesCliente === 1 ? "decisão aguarda" : "decisões aguardam"} sua deliberação.` : null,
+      `Próximo relatório: até ${formatarData(prazoProximo(competencia))}.`,
+      emp?.gestor_nome ? `Gestão RPS: ${emp.gestor_nome}` : null,
+    ].filter(Boolean) as string[];
+    add("fim", "Encerramento", <SlideEncerramento linhas={linhasFim} foto={ctx.urlFotoEmpreendimento} />);
+  }
 
   /* ---------------------------------------- ordem, sumário e paginação */
   const posicao = (id: string) => ORDEM.findIndex((o) => o.id === id);
   const ordenados = slides.sort((a, b) => posicao(a.id) - posicao(b.id));
-  ordenados.splice(1, 0, { id: "sumario", titulo: "Sumário", capitulo: null, pagina: 0, node: null });
+  const depoisDaAbertura = ordenados[1]?.id === "panorama" ? 2 : 1;
+  ordenados.splice(depoisDaAbertura, 0, { id: "sumario", titulo: "Sumário", capitulo: null, pagina: 0, node: null });
+  ordenados.forEach((sl) => {
+    sl.capitulo = ORDEM.find((o) => o.id === sl.id)?.capitulo ?? null;
+  });
+  // Abertura de capítulo em tela cheia antes do primeiro slide de cada capítulo.
+  for (const c of CAPITULOS) {
+    const i = ordenados.findIndex((sl) => sl.capitulo === c.id);
+    if (i < 0) continue;
+    ordenados.splice(i, 0, {
+      id: `abertura-${c.id}`,
+      titulo: c.nome,
+      capitulo: c.id,
+      pagina: 0,
+      node: (
+        <SlideAbertura
+          numero={c.id}
+          titulo={c.nome}
+          texto={c.resumo}
+          destaques={destaquesDoCapitulo(c.id)}
+          foto={ctx.urlFotoEmpreendimento}
+        />
+      ),
+    });
+  }
   ordenados.forEach((sl, i) => {
     sl.pagina = i + 1;
-    sl.capitulo = ORDEM.find((o) => o.id === sl.id)?.capitulo ?? null;
   });
 
   const inicioCapitulo: Partial<Record<CapituloId, string>> = {};
   ordenados.forEach((sl) => {
-    if (sl.capitulo && !inicioCapitulo[sl.capitulo]) inicioCapitulo[sl.capitulo] = sl.id;
+    if (sl.capitulo && !inicioCapitulo[sl.capitulo]) inicioCapitulo[sl.capitulo] = sl.id; // a abertura do capítulo
   });
 
   const painel = ordenados.find((sl) => sl.id === "painel");
-  ordenados[1].node = (
+  ordenados.find((sl) => sl.id === "sumario")!.node = (
     <SlideSumario
       painel={painel ? { pagina: painel.pagina, id: painel.id } : undefined}
       capitulos={CAPITULOS.map((c) => ({
         ...c,
-        itens: ordenados.filter((sl) => sl.capitulo === c.id).map((sl) => ({ titulo: sl.titulo, pagina: sl.pagina, id: sl.id })),
+        itens: ordenados.filter((sl) => sl.capitulo === c.id && !sl.id.startsWith("abertura-")).map((sl) => ({ titulo: sl.titulo, pagina: sl.pagina, id: sl.id })),
       })).filter((c) => c.itens.length)}
     />
   );

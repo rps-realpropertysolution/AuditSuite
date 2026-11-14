@@ -34,7 +34,6 @@ import { buscarImportacaoLF } from "@/hooks/useImportacaoLF";
 import { aplicarImportacao } from "@/lib/importacao";
 import {
   competenciaDeReferencia,
-  diasParaPrazo,
   prazoEntrega,
   situacaoEntrega,
   ultimasCompetencias,
@@ -104,7 +103,6 @@ const Dashboard = () => {
     return c;
   }, [situacao]);
 
-  const dias = diasParaPrazo(competencia);
   const faltando = situacao.filter((s) => !s.doMes || (!s.doMes.dados.importacao && s.doMes.status !== "publicado" && integrado(s.empreendimento)));
 
   const abrirOuCriar = async (empreendimentoId: string, existente: Relatorio | null) => {
@@ -181,13 +179,6 @@ const Dashboard = () => {
               </select>
               <span>
                 · entrega até <strong className="text-foreground">{formatarData(prazoEntrega(competencia))}</strong>
-                {contagem.publicado < situacao.length ? (
-                  dias >= 0 ? (
-                    <> ({dias === 0 ? "hoje" : `faltam ${dias} dias`})</>
-                  ) : (
-                    <strong className="text-semaforo-vermelho"> (prazo vencido há {Math.abs(dias)} dias)</strong>
-                  )
-                ) : null}
               </span>
             </div>
           </div>
