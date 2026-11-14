@@ -17,6 +17,7 @@ import type { Foto } from "@/lib/types";
 const Apresentacao = () => {
   const { id } = useParams<{ id: string }>();
   const [busca] = useSearchParams();
+  const modoPdf = busca.get("pdf") === "1";
   const navegar = useNavigate();
   const { data: relatorio, isLoading } = useRelatorio(id);
   const { data: historico = [] } = useHistorico(relatorio?.empreendimento_id, 13);
@@ -37,9 +38,10 @@ const Apresentacao = () => {
             historico,
             urlsFotos: urls,
             urlFotoEmpreendimento: relatorio.empreendimento?.foto_path ? urls[relatorio.empreendimento.foto_path] : null,
+            animar: !modoPdf,
           })
         : [],
-    [relatorio, historico, urls],
+    [relatorio, historico, urls, modoPdf],
   );
   const sair = useCallback(() => navegar(`/relatorio/${id}`), [navegar, id]);
 
@@ -51,7 +53,7 @@ const Apresentacao = () => {
     );
   }
 
-  return <Visualizador slides={slides} modoPdf={busca.get("pdf") === "1"} sair={sair} />;
+  return <Visualizador slides={slides} modoPdf={modoPdf} sair={sair} />;
 };
 
 export default Apresentacao;

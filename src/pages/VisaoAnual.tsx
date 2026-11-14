@@ -15,11 +15,12 @@ const VisaoAnual = () => {
   const { id, ano: anoParam } = useParams<{ id: string; ano: string }>();
   const ano = Number(anoParam) || new Date().getFullYear();
   const [busca] = useSearchParams();
+  const modoPdf = busca.get("pdf") === "1";
   const navegar = useNavigate();
   const { data: emp, isLoading: carregandoEmp } = useEmpreendimento(id);
   const { data: relatorios = [], isLoading: carregandoRel } = useRelatoriosDoAno(id, ano);
 
-  const slides = useMemo(() => (emp ? montarSlidesAnuais({ empreendimento: emp, relatorios, ano }) : []), [emp, relatorios, ano]);
+  const slides = useMemo(() => (emp ? montarSlidesAnuais({ empreendimento: emp, relatorios, ano, animar: !modoPdf }) : []), [emp, relatorios, ano, modoPdf]);
   const sair = useCallback(() => (window.history.length > 1 ? navegar(-1) : navegar("/")), [navegar]);
 
   if (carregandoEmp || carregandoRel || !emp) {
@@ -29,7 +30,7 @@ const VisaoAnual = () => {
       </div>
     );
   }
-  return <Visualizador slides={slides} modoPdf={busca.get("pdf") === "1"} sair={sair} />;
+  return <Visualizador slides={slides} modoPdf={modoPdf} sair={sair} />;
 };
 
 export default VisaoAnual;

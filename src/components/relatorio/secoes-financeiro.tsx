@@ -683,7 +683,7 @@ export const SecaoValorGerado = ({ dados, atualizar, somenteLeitura }: PropsSeca
       id="valorGerado"
       titulo="Valor gerado no período"
       icone={<Gem className="h-5 w-5" />}
-      descricao="O que a gestão entregou em dinheiro. Critério RPS: só é realizado o que está comprovado em caixa ou em campo; estimativa de terceiro e projeção que depende de aprovação ficam separadas. Sem lançamento, a inadimplência recuperada entra como realizado."
+      descricao="Quanto a gestão da RPS fez o proprietário ganhar ou economizar no mês — ex.: inadimplência recuperada, contrato renegociado, conta de energia mais barata. Marque o tipo: Realizado (já entrou ou deixou de sair do caixa), Estimado (informado por terceiro, ex. comercializadora), Projetado (depende de aprovação ou assinatura) ou Investido. Se você não lançar nada, a inadimplência recuperada no mês entra sozinha como realizado."
     >
       <TabelaEditavel
         linhas={dados.valorGerado.linhas}

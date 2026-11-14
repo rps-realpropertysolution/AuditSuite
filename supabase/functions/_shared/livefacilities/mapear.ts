@@ -245,7 +245,10 @@ export const mapearDocumentos = (lista: DocumentoListaLF[], idEmpreendimento?: n
           if (doc.documentoAtivo === false) continue;
           const titulo = txt(doc.documentoTitulo).replace(/^[\d.]+\s*-\s*/, "");
           if (!titulo) continue;
-          const validade = dia(doc.dataValidade) ?? dia(doc.dataFinal) ?? "";
+          // Só dataValidade vale. 01/01/1900 = sem validade (Habite-se, convenção…).
+          // dataFinal é o fim do registro no sistema, não validade — usar levava
+          // documentos permanentes a aparecer como vencidos.
+          const validade = dia(doc.dataValidade) ?? "";
           const chave = chaveNome(titulo);
           const atual = porTitulo.get(chave);
           // renovação gera documento novo: fica o de validade mais longa
